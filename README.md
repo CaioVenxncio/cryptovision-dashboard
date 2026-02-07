@@ -1,9 +1,5 @@
 # 🚀 CryptoVision Dashboard
 
-<div align="center">
- <img src="https://github.com/user-attachments/assets/412db07c-e956-40ce-a97e-030fe6049488" alt="CryptoVision Dashboard" width="800">
-</div>
-
 ## 💡 About the Project
 
 **CryptoVision Dashboard** is an interactive web application developed in Python that allows real-time visualization of the main cryptocurrencies in the market. This project demonstrates the implementation of a complete dashboard using the CoinMarketCap API, featuring dynamic visualizations and financial data analysis.
