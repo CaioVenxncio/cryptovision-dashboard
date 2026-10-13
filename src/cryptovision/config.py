@@ -36,6 +36,8 @@ class Settings(BaseModel):
     cache_ttl_seconds: int = Field(default=900, ge=60, le=86_400)
     http_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
     http_max_retries: int = Field(default=3, ge=0, le=5)
+    # Local historical datasets (see docs/data-methodology.md).
+    data_dir: Path = PROJECT_ROOT / "data"
 
     @field_validator("coingecko_api_key", mode="before")
     @classmethod
@@ -64,6 +66,7 @@ _ENV_TO_FIELD = {
     "CACHE_TTL_SECONDS": "cache_ttl_seconds",
     "HTTP_TIMEOUT_SECONDS": "http_timeout_seconds",
     "HTTP_MAX_RETRIES": "http_max_retries",
+    "CRYPTOVISION_DATA_DIR": "data_dir",
 }
 
 

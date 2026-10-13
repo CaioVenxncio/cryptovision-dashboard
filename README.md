@@ -12,10 +12,10 @@ CryptoVision is a Python and Streamlit application for exploring cryptocurrency 
 |---|---|
 | Market Explorer | Available |
 | Historical data pipeline | Available (command line) |
-| Quantitative Analytics | Planned (Phase 4) |
+| Quantitative Analytics | Available (descriptive) |
 | Research Lab | Planned (Phase 5) |
 
-Quantitative analytics and statistical research are **not available yet**. The dashboard shows current market data. The historical data pipeline builds validated research datasets, but no analysis is performed on them yet.
+Statistical research (hypothesis tests, regime experiments) is **not available yet**. The analytics are descriptive summaries of historical data, not research findings.
 
 ## Features
 
@@ -30,6 +30,13 @@ Quantitative analytics and statistical research are **not available yet**. The d
   - Validates every dataset with explicit fatal/error/warning issues.
   - Stores Parquet files with a provenance manifest (sources, hashes, configuration, validation report).
   - Supports offline rebuilds and integrity verification.
+- **Historical Analytics** (`cryptovision.analytics` and a dashboard page):
+  - Simple and log returns.
+  - Daily and annualized volatility (365-day convention), with rolling windows of 7, 30 and 90 days.
+  - Maximum drawdown with peak, trough and recovery dates.
+  - Pearson and Spearman correlation matrices with sample counts, and rolling correlation.
+  - Calendar-aware gap handling: no interpolation and no forward-filling.
+  - Works offline on validated local datasets only.
 - **API budget protection**:
   - Data is cached for 15 minutes by default.
   - Manual refresh is limited to once per 60 seconds.
@@ -87,7 +94,7 @@ The key is sent only in the `x-cg-demo-api-key` request header, never in URLs, l
 streamlit run app.py
 ```
 
-Then open http://localhost:8501.
+Then open http://localhost:8501. Use the sidebar to switch between **Market Explorer** (live CoinGecko data) and **Historical Analytics** (local datasets, offline). The analytics page lists only research-ready, unexpired datasets from `data/` (override with `CRYPTOVISION_DATA_DIR`).
 
 ## Historical datasets
 
@@ -122,6 +129,7 @@ Further reading:
 
 - [Data sources and licensing](docs/data-sources.md)
 - [Data methodology](docs/data-methodology.md)
+- [Analytics methodology](docs/analytics-methodology.md)
 - [Reproducibility](docs/reproducibility.md)
 - [Limitations](docs/limitations.md)
 
@@ -204,7 +212,8 @@ The workflow uses a read-only token and needs no secrets.
 
 ```
 cryptovision-dashboard/
-├── app.py                        # Thin Streamlit entry point
+├── app.py                        # Streamlit entry point and page navigation
+├── views/                        # Market Explorer and Historical Analytics pages
 ├── src/cryptovision/
 │   ├── config.py                 # Validated settings from the environment
 │   ├── models.py                 # Pydantic models with provenance
@@ -212,11 +221,12 @@ cryptovision-dashboard/
 │   ├── formatting.py             # Display-only formatting
 │   ├── providers/                # HTTP client, CoinGecko client, errors
 │   ├── data/                     # Historical datasets: config, sources, validation, storage, CLI
+│   ├── analytics/                # Returns, volatility, drawdown, correlation (Streamlit-free)
 │   └── ui/                       # Data loading/cache, components, charts, theme
 ├── configs/datasets/             # Dataset definitions (TOML)
 ├── data/                         # Local datasets (git-ignored)
 ├── tests/                        # Offline test suite
-├── docs/                         # Architecture, data sources, methodology, reproducibility, limitations
+├── docs/                         # Architecture, data and analytics methodology, reproducibility, limitations
 └── .github/workflows/ci.yml      # Continuous integration
 ```
 
@@ -240,7 +250,7 @@ Check [CoinGecko's pricing page](https://www.coingecko.com/en/api/pricing) for c
 1. Secure CoinGecko migration (complete)
 2. Engineering foundation: CI, coverage, UI modularization, secret scanning (complete)
 3. Historical data pipeline with provenance records (complete)
-4. Quantitative analytics: returns, volatility, drawdown, correlation
+4. Quantitative analytics: returns, volatility, drawdown, correlation (complete)
 5. Research Lab: reproducible volatility and correlation experiments
 6. Multipage UI, offline demo mode and release
 

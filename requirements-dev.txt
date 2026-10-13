@@ -76,6 +76,7 @@ numpy==2.5.4
     #   cryptovision (pyproject.toml)
     #   pandas
     #   pydeck
+    #   scipy
     #   streamlit
 packaging==26.3
     # via
@@ -156,6 +157,8 @@ rpds-py==2026.9.1
     #   jsonschema
     #   referencing
 ruff==0.17.0
+    # via cryptovision (pyproject.toml)
+scipy==1.18.1
     # via cryptovision (pyproject.toml)
 six==1.17.0
     # via python-dateutil

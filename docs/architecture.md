@@ -7,9 +7,10 @@ This document describes the architecture as currently implemented. Planned work 
 CryptoVision is an educational and research-oriented cryptocurrency market analytics application. The current release provides:
 
 - a **Market Explorer** backed by the CoinGecko Demo API;
-- a **historical data pipeline** that builds validated, hash-verified Parquet datasets with provenance manifests.
+- a **historical data pipeline** that builds validated, hash-verified Parquet datasets with provenance manifests;
+- a **quantitative analytics engine** (returns, volatility, drawdown, correlation) and a Historical Analytics page that works offline on validated datasets.
 
-Later phases will add quantitative analytics and a reproducible Research Lab.
+A later phase will add a reproducible Research Lab.
 
 The project deliberately stays a single Python package with a Streamlit front end. There is no separate backend service, database or frontend framework.
 
@@ -35,7 +36,7 @@ flowchart LR
     end
 
     ENV[.env / environment] --> CFG
-    APP[app.py<br/>entry point] --> CFG
+    APP[app.py + views/market_explorer.py<br/>entry point and page] --> CFG
     APP --> DATA
     APP --> COMP
     DATA --> CLI
@@ -51,13 +52,15 @@ flowchart LR
     CH --> TH
 ```
 
-Dependencies point one way: `app.py` → `ui` → domain modules (`market`, `formatting`, `models`) → `providers` → `config`. Domain and provider modules never import Streamlit, so they can be reused by future notebooks and pipelines.
+Dependencies point one way: `app.py` → `views` → `ui` → domain modules (`market`, `formatting`, `models`) → `providers` → `config`. Domain and provider modules never import Streamlit, so they can be reused by future notebooks and pipelines.
 
 ## 3. Modules and responsibilities
 
 | Module | Responsibility |
 |---|---|
-| `app.py` | Thin Streamlit entry point. Loads settings, calls the data loader and lays out components. |
+| `app.py` | Streamlit entry point: page configuration and `st.navigation` between the two pages. |
+| `views/market_explorer.py` | Market Explorer page: loads settings, calls the data loader and lays out components. |
+| `views/historical_analytics.py` | Historical Analytics page; delegates to `ui/analytics_view.py`. |
 | `cryptovision/config.py` | Reads environment variables (and `.env` via python-dotenv) into a validated, immutable `Settings` model. |
 | `cryptovision/providers/http_client.py` | Generic JSON-over-HTTP client: timeouts, bounded exponential backoff, `Retry-After` handling, error classification. |
 | `cryptovision/providers/coingecko.py` | CoinGecko-specific requests (`/coins/markets`, `/simple/price`), authentication header and response validation. |
@@ -78,10 +81,19 @@ Dependencies point one way: `app.py` → `ui` → domain modules (`market`, `for
 | `cryptovision/data/pipeline.py` | Planning, collection, atomic dataset assembly, verification, loading, cache expiry. |
 | `cryptovision/data/synthetic.py` | Deterministic synthetic OHLCV data with optional injected defects. |
 | `cryptovision/data/cli.py` | `cryptovision-data` command-line interface. |
+| `cryptovision/analytics/alignment.py` | Validates observations and builds a calendar-complete daily price panel (no filling). |
+| `cryptovision/analytics/returns.py` | Simple and log returns with a per-cell status (valid, first observation, missing price, after gap). |
+| `cryptovision/analytics/volatility.py` | Sample volatility, annualization, rolling volatility. |
+| `cryptovision/analytics/drawdown.py` | Drawdown series and maximum drawdown with peak, trough and recovery. |
+| `cryptovision/analytics/correlation.py` | Pearson and Spearman matrices (pairwise deletion, counts) and rolling correlation. |
+| `cryptovision/analytics/descriptive.py` | Per-asset descriptive summary. |
+| `cryptovision/analytics/data.py` | The only loader for real data; goes through the Phase 3 integrity checks. |
+| `cryptovision/analytics/models.py` | Enums, analysis context and reproducibility metadata. |
+| `cryptovision/ui/analytics_view.py`, `ui/analytics_charts.py` | Analytics page components and Plotly figure builders. |
 
 ## 4. Data flow
 
-1. `app.py` calls `load_settings()`. An invalid value stops the app with a message naming the variable, never its value.
+1. The Market Explorer page (`views/market_explorer.py`) calls `load_settings()`. An invalid value stops the app with a message naming the variable, never its value.
 2. `load_market_snapshot()` returns the cached snapshot, or calls `CoinGeckoClient.get_markets()` once if the cache is empty or expired.
 3. The client sends `GET /coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false`. One request covers every slider position (5–50 assets).
 4. Each record is validated into a `MarketCoin`. Invalid records are dropped and counted. The batch becomes a `MarketSnapshot` with `fetched_at` in UTC.
@@ -121,7 +133,7 @@ Backoff for attempt *n* (0-based) is `min(30, 1 × 2^n)` seconds multiplied by a
 
 ## 7. Caching strategy
 
-Streamlit reruns `app.py` on every interaction, so caching is essential to protect the Demo plan's monthly request budget.
+Streamlit reruns the page script on every interaction, so caching is essential to protect the Demo plan's monthly request budget.
 
 - `_fetch_market_snapshot` is wrapped in `st.cache_data`, a process-wide in-memory cache. The settings argument is excluded from the cache key.
 - `load_market_snapshot` treats a cached snapshot older than `CACHE_TTL_SECONDS` as expired, clears it and fetches once.
@@ -162,10 +174,11 @@ All tests run offline. The `responses` library intercepts every `requests` call,
 | `test_formatting.py` | Currency, percentage and timestamp edge cases |
 | `test_market_data.py` | Cache reuse, expiry, cooldown and recovery |
 | `test_charts.py`, `test_components.py` | Figure contents and table display formatting |
-| `test_app.py` | The real `app.py` via Streamlit's `AppTest`: rendering, request counts across reruns, refresh, errors and recovery |
+| `test_app.py` | The real app (navigation plus Market Explorer page) via Streamlit's `AppTest`: rendering, request counts across reruns, refresh, errors and recovery |
+| `test_analytics_*.py` | Hand-calculated returns, volatility, drawdown and correlation; alignment and gap policy; references against `statistics` and SciPy; independent checks on the real dataset (skipped when absent); Analytics page via `AppTest` |
 | `test_data_*.py` | Dataset configs, Binance archive parsing and checksum handling, CoinGecko chart parsing, validation rules and thresholds, Parquet round trips, hashing, atomic writes, interrupted runs, offline rebuilds, cache expiry, CLI commands |
 
-Coverage is measured with branch coverage over `cryptovision` and `app.py`. A minimum of 90% is enforced (`fail_under` in `pyproject.toml`).
+Coverage is measured with branch coverage over `cryptovision`, `app.py` and `views/`. A minimum of 90% is enforced (`fail_under` in `pyproject.toml`).
 
 ## 11. CI workflow
 
@@ -201,13 +214,10 @@ Data and research limitations are covered in [limitations.md](limitations.md). A
 
 ## 14. Planned evolution
 
-Phase 3, the historical data pipeline, is implemented; see [data-methodology.md](data-methodology.md). The following phases are **not implemented yet**.
+Phase 3 (historical data pipeline, see [data-methodology.md](data-methodology.md)) and Phase 4 (analytics, see [analytics-methodology.md](analytics-methodology.md)) are implemented. The following phases are **not implemented yet**.
 
-- **Phase 4, quantitative analytics**:
-  - Returns, volatility, drawdown and correlation in a Streamlit-free `analytics` package.
-  - Tests against analytically known values.
 - **Phase 5, Research Lab**: versioned experiment configurations, regime definitions, dependence-aware inference (block bootstrap) and a documented study protocol.
 - **Phase 6, UI and release**:
-  - Multipage navigation (Market Explorer, Quantitative Analytics, Research Lab) reusing the current `ui` components.
+  - Extend the existing navigation with a Research Lab page and refine the UI.
   - An offline demo mode with clearly labelled synthetic data.
   - Final documentation.

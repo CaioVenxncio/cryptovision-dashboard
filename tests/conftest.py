@@ -58,6 +58,7 @@ def isolate_environment(monkeypatch):
         "HTTP_TIMEOUT_SECONDS",
         "HTTP_MAX_RETRIES",
         "COINGECKO_BASE_URL",
+        "CRYPTOVISION_DATA_DIR",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("COINGECKO_API_KEY", "")

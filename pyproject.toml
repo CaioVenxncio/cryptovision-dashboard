@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cryptovision"
-version = "0.3.0"
+version = "0.4.0"
 description = "A reproducible cryptocurrency market analytics and research platform."
 readme = "README.md"
 license = "MIT"
@@ -41,6 +41,8 @@ dev = [
     "pytest-cov>=6.0",
     "responses>=0.25",
     "ruff>=0.8",
+    # Independent reference implementations for analytics tests only.
+    "scipy>=1.13",
 ]
 
 [tool.setuptools.packages.find]
@@ -57,7 +59,7 @@ addopts = "-ra"
 
 [tool.coverage.run]
 branch = true
-source = ["cryptovision", "app"]
+source = ["cryptovision", "app", "views"]
 
 [tool.coverage.report]
 show_missing = true
