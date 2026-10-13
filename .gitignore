@@ -1,0 +1,23 @@
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+
+# Local secrets used by Streamlit
+.streamlit/secrets.toml
+
+# Virtual environments
+.venv/
+venv/
+
+# Packaging and build artifacts
+*.egg-info/
+build/
+dist/
+
+# Tool caches and coverage output
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/

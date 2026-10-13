@@ -1,132 +1,154 @@
-# 🚀 CryptoVision Dashboard
+# CryptoVision
 
-## 💡 About the Project
+**A reproducible cryptocurrency market analytics and research platform.**
 
-**CryptoVision Dashboard** is an interactive web application developed in Python that allows real-time visualization of the main cryptocurrencies in the market. This project demonstrates the implementation of a complete dashboard using the CoinMarketCap API, featuring dynamic visualizations and financial data analysis.
+CryptoVision is a Python and Streamlit application for exploring cryptocurrency market data. It is being developed incrementally into a reproducible research platform for studying volatility and correlation among major cryptocurrencies.
 
-### 🔍 Key Features
+> CryptoVision is an educational and academic research project. It is not a trading platform and does not provide investment advice.
 
-- **Real-Time Monitoring**: Track prices and fluctuations of top cryptocurrencies.
-- **Advanced Data Visualization**: Interactive charts for market cap and trend analysis.
-- **Responsive Interface**: Modern design adaptable to different devices.
-- **Data Export**: Export data in CSV format.
-- **Instant Updates**: Button for on-demand data refresh.
+## Status
 
-## 🛠️ Technologies Used
+| Module | Status |
+|---|---|
+| Market Explorer | Available |
+| Quantitative Analytics | Planned |
+| Research Lab | Planned |
 
-<div align="center">
-  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="Streamlit">
-  <img src="https://img.shields.io/badge/Plotly-3F4F75?style=for-the-badge&logo=plotly&logoColor=white" alt="Plotly">
-  <img src="https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white" alt="Pandas">
-  <img src="https://img.shields.io/badge/API-REST-009688?style=for-the-badge&logo=api&logoColor=white" alt="REST API">
-</div>
+## Features
 
-- **Backend**: Python 3.11 for data processing and business logic.
-- **Frontend**: Streamlit for interactive and responsive web interface.
-- **Visualization**: Plotly for dynamic and interactive charts.
-- **Data**: Pandas for data manipulation and analysis.
-- **API**: Integration with CoinMarketCap API via Requests.
-- **Styling**: Custom CSS for a professional theme.
+- **Market Explorer**: the top 5–50 assets by market capitalization, with price, 24h change, 24h volume and market cap.
+- **Correctly scoped metrics**: market cap and volume cards are labelled as aggregates over the *selected assets only*, not the whole crypto market.
+- **Numeric tables**: values stay numeric, so columns sort by value. Formatting is applied only when displayed, and very small prices keep their significant digits.
+- **Data freshness**: the app shows the provider's last-update time and the fetch time, both in UTC, and whether the data came from the cache.
+- **CSV export**: an in-memory download of raw values at full precision, with source and fetch-time columns.
+- **Interactive charts**: market cap (linear or log scale) and 24h price change, built with Plotly.
+- **API budget protection**: responses are cached (15 minutes by default) and manual refresh is rate-limited. Changing the asset count never triggers a new request.
 
-## ⚙️ Project Architecture
+## Technology
 
-The project follows a modular and well-organized architecture:
+- Python 3.12 (primary), 3.13 compatible
+- Streamlit, Plotly, pandas
+- Pydantic v2 for configuration and response validation
+- requests with explicit timeouts and bounded retries
+- pytest, responses, Ruff
+- pip-tools for pinned dependencies
+
+## Architecture
 
 ```
-crypto_dashboard/
-│
-├── app.py                # Main application and Streamlit interface
-├── api.py                # CoinMarketCap API integration module
-├── utils.py              # Utility functions for data processing
-├── requirements.txt      # Project dependencies
-└── screenshots/          # Dashboard screenshots
+cryptovision-dashboard/
+├── app.py                       # Streamlit entry point (Market Explorer)
+├── src/cryptovision/
+│   ├── config.py                # Environment settings, validated; API key masked
+│   ├── models.py                # Typed models with provenance and UTC timestamps
+│   ├── market.py                # Snapshot -> numeric DataFrame, summaries, CSV export
+│   ├── formatting.py            # Display-only number and time formatting
+│   └── providers/
+│       ├── errors.py            # Provider exception hierarchy (safe messages)
+│       ├── http_client.py       # Timeouts, bounded exponential backoff, Retry-After
+│       └── coingecko.py         # CoinGecko /coins/markets and /simple/price client
+├── tests/                       # Offline tests with mocked HTTP responses
+├── pyproject.toml               # Project metadata, Ruff and pytest configuration
+├── requirements.txt             # Pinned runtime dependencies (generated)
+└── requirements-dev.txt         # Pinned development dependencies (generated)
 ```
 
-## 📊 Implemented Features
+## Installation (Windows PowerShell)
 
-- **Main Dashboard**: Overview of the cryptocurrency market.
-- **Interactive Table**: List of top cryptocurrencies with detailed data.
-- **Real-Time Metrics**: Total market cap, average change, and volume.
-- **Market Cap Charts**: Comparative visualization among major coins.
-- **Variation Charts**: Performance analysis over 24-hour periods.
-- **Data Export**: Option to save data in CSV format.
-- **Customization**: Interface with a professional white and purple theme.
+Prerequisite: Python 3.12 or 3.13.
 
-## 🚀 How to Run the Project
-
-### Prerequisites
-
-- Python 3.6 or higher
-- Pip (Python package manager)
-
-### Installation
-
-1. Clone this repository:
-```bash
-git clone https://github.com/your-username/cryptovision-dashboard.git
+```powershell
+git clone https://github.com/CaioVenxncio/cryptovision-dashboard.git
 cd cryptovision-dashboard
+
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+python -m pip install --upgrade pip
+pip install -r requirements-dev.txt
+pip install -e . --no-deps
 ```
 
-2. Create and activate a virtual environment:
-```bash
-python -m venv venv
+If PowerShell blocks the activation script, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
 
-# On Windows
-venv\Scripts\activate
+On Linux or macOS, activate with `source .venv/bin/activate` instead.
 
-# On Linux/Mac
-source venv/bin/activate
-```
+## Configuration
 
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+1. Create a free CoinGecko Demo API key at [coingecko.com/en/api](https://www.coingecko.com/en/api).
+2. Copy the example file:
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+3. Edit `.env` and set `COINGECKO_API_KEY`. Never commit `.env`; it is excluded by `.gitignore`.
 
-4. Run the application:
-```bash
+| Variable | Default | Description |
+|---|---|---|
+| `COINGECKO_API_KEY` | none | CoinGecko Demo API key. Required for live data. |
+| `CACHE_TTL_SECONDS` | `900` | How long fetched data is reused (60–86400). |
+| `HTTP_TIMEOUT_SECONDS` | `10` | Per-request timeout (up to 60). |
+| `HTTP_MAX_RETRIES` | `3` | Retries after timeouts, HTTP 429 or HTTP 5xx (0–5). |
+
+The key is sent only in the `x-cg-demo-api-key` request header, never in URLs or logs.
+
+## Running
+
+```powershell
 streamlit run app.py
 ```
 
-5. Access the dashboard in your browser (usually at http://localhost:8501)
+Then open http://localhost:8501.
 
-## 🧠 Learnings and Challenges
+## Testing and linting
 
-During the development of this project, I enhanced several technical skills:
+The tests need no API key and make no network requests.
 
-- **REST API Consumption**: Implementing authenticated requests and handling responses.
-- **Financial Data Handling**: Processing and formatting market data.
-- **Interactive Visualization**: Creating dynamic charts for data analysis.
-- **Interface Design**: Developing an intuitive and responsive UI/UX.
-- **Code Modularization**: Structuring the project with reusable components.
+```powershell
+pytest
+ruff check .
+ruff format --check .
+```
 
-## 🔮 Future Improvements
+## Data provider and limitations
 
-- Implementing user authentication.
-- Adding price history with time series.
-- Creating custom price alerts.
-- Integrating multiple data sources.
-- Implementing predictive analytics with machine learning.
+Market data is provided by [CoinGecko](https://www.coingecko.com/en/api) through the Demo API (`https://api.coingecko.com/api/v3`).
 
-## 📜 License
+- **Not real-time.** CoinGecko refreshes Demo endpoint data about every 60 seconds, and CryptoVision reuses fetched data for up to `CACHE_TTL_SECONDS`.
+- **Request budget.** The Demo plan has a monthly call limit (10,000 calls at the time of writing). Each cache refresh uses one call.
+- **Historical depth.** The Demo plan provides roughly one year of daily and hourly history, which constrains future research designs.
+- **Scope of aggregates.** Totals are computed over the selected assets only and are not global market figures.
+- **Attribution.** CoinGecko requires attribution, which the app displays.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Check [CoinGecko's pricing page](https://www.coingecko.com/en/api/pricing) for current plan terms.
 
-## 🤝 Contributions
+## Updating dependencies
 
-Contributions are welcome! Feel free to open issues or submit pull requests with improvements
+Edit the dependency ranges in `pyproject.toml`, then regenerate the pinned files:
 
-## 📬 Contact
+```powershell
+pip-compile --strip-extras --no-emit-index-url -o requirements.txt pyproject.toml
+pip-compile --strip-extras --extra dev -o requirements-dev.txt pyproject.toml
+pip-sync requirements-dev.txt
+pip install -e . --no-deps
+```
+
+## Roadmap
+
+1. Secure CoinGecko migration (complete)
+2. Engineering foundation: CI, coverage, further refactoring
+3. Historical data pipeline with provenance records
+4. Quantitative analytics: returns, volatility, drawdown, correlation
+5. Research Lab: reproducible volatility and correlation experiments
+6. UI refinement, offline demo mode and release
+
+## License
+
+Released under the [MIT License](LICENSE).
+
+## Author
+
+**Caio Venancio**
 
 - LinkedIn: [Caio Venancio](https://www.linkedin.com/in/caio-venancio/)
 - GitHub: [@CaioVenxncio](https://github.com/CaioVenxncio)
 - Email: caiovenanciocommercial@gmail.com
-
----
-
-<div align="center">
-  <p>Developed with ❤️ and ☕</p>
-</div>
-
-

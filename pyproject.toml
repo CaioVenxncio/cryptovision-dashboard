@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cryptovision"
+version = "0.2.0"
+description = "A reproducible cryptocurrency market analytics and research platform."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Caio Venancio" }]
+requires-python = ">=3.12"
+dependencies = [
+    "pandas>=2.2.3",
+    "plotly>=5.24",
+    "pydantic>=2.9",
+    "python-dotenv>=1.0",
+    "requests>=2.32",
+    "streamlit>=1.44",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pip-tools>=7.4",
+    "pytest>=8.3",
+    "responses>=0.25",
+    "ruff>=0.8",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
