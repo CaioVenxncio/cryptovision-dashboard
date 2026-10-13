@@ -65,7 +65,7 @@ def parse_retry_after(value: str | None, now: datetime | None = None) -> float |
 
 
 class HttpJsonClient:
-    """Performs GET requests and returns decoded JSON.
+    """Performs GET requests and returns decoded JSON (`get_json`) or raw bytes (`get_bytes`).
 
     Retries only on timeouts, connection errors, HTTP 429 and HTTP 5xx, at most
     `retry_policy.max_retries` times. Authentication and other client errors
@@ -82,8 +82,10 @@ class HttpJsonClient:
         session: requests.Session | None = None,
         sleep: Callable[[float], None] = time.sleep,
         jitter: Callable[[], float] = random.random,
+        auth_error_message: str = "The provider denied access (HTTP {status}).",
     ) -> None:
         self._base_url = base_url.rstrip("/")
+        self._auth_error_message = auth_error_message
         self._headers = dict(headers)
         self._timeout = timeout_seconds
         self._retry = retry_policy or RetryPolicy()
@@ -96,13 +98,23 @@ class HttpJsonClient:
         return f"{type(self).__name__}(base_url={self._base_url!r})"
 
     def get_json(self, path: str, params: Mapping[str, str] | None = None) -> Any:
+        response = self._get(path, params)
+        try:
+            return response.json()
+        except ValueError:
+            raise ResponseSchemaError(f"Response from {path} is not valid JSON.") from None
+
+    def get_bytes(self, path: str, params: Mapping[str, str] | None = None) -> bytes:
+        return self._get(path, params).content
+
+    def _get(self, path: str, params: Mapping[str, str] | None) -> requests.Response:
         url = f"{self._base_url}/{path.lstrip('/')}"
         attempts = self._retry.max_retries + 1
 
         for attempt in range(attempts):
             outcome = self._attempt(url, path, params)
-            if isinstance(outcome, _Success):
-                return outcome.payload
+            if isinstance(outcome, requests.Response):
+                return outcome
             if attempt == attempts - 1:
                 raise outcome
             delay = self._delay_for(outcome, attempt)
@@ -125,7 +137,7 @@ class HttpJsonClient:
 
     def _attempt(
         self, url: str, path: str, params: Mapping[str, str] | None
-    ) -> ProviderError | _Success:
+    ) -> ProviderError | requests.Response:
         """Perform one request. Returns retryable errors; raises non-retryable ones."""
         try:
             response = self._session.get(
@@ -141,18 +153,14 @@ class HttpJsonClient:
             ) from None
         return self._interpret(response, path)
 
-    def _interpret(self, response: requests.Response, path: str) -> ProviderError | _Success:
+    def _interpret(
+        self, response: requests.Response, path: str
+    ) -> ProviderError | requests.Response:
         status = response.status_code
         if 200 <= status < 300:
-            try:
-                return _Success(response.json())
-            except ValueError:
-                raise ResponseSchemaError(f"Response from {path} is not valid JSON.") from None
+            return response
         if status in (401, 403):
-            raise AuthenticationError(
-                f"The provider rejected the API key (HTTP {status}). "
-                "Check COINGECKO_API_KEY and that it is a Demo plan key."
-            )
+            raise AuthenticationError(self._auth_error_message.format(status=status))
         if status == 429:
             retry_after = parse_retry_after(response.headers.get("Retry-After"))
             error = RateLimitError(
@@ -163,9 +171,6 @@ class HttpJsonClient:
             return error
         if status in RETRYABLE_SERVER_STATUSES:
             return ProviderUnavailableError(f"Provider error for {path} (HTTP {status}).")
-        raise ProviderRequestError(f"Request to {path} was rejected (HTTP {status}).")
-
-
-@dataclass(frozen=True)
-class _Success:
-    payload: Any
+        raise ProviderRequestError(
+            f"Request to {path} was rejected (HTTP {status}).", status_code=status
+        )

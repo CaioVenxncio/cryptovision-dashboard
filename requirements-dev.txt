@@ -73,6 +73,7 @@ nodeenv==1.11.0
     # via pre-commit
 numpy==2.5.4
     # via
+    #   cryptovision (pyproject.toml)
     #   pandas
     #   pydeck
     #   streamlit
@@ -106,7 +107,9 @@ pre-commit==4.7.0
 protobuf==7.36.2
     # via streamlit
 pyarrow==25.0.1
-    # via streamlit
+    # via
+    #   cryptovision (pyproject.toml)
+    #   streamlit
 pydantic==2.14.1
     # via cryptovision (pyproject.toml)
 pydantic-core==2.50.1

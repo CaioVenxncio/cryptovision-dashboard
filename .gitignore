@@ -23,3 +23,8 @@ dist/
 .coverage.*
 coverage.xml
 htmlcov/
+
+# Market data, caches and generated datasets. Provider terms restrict
+# redistribution, so real data is never committed (see docs/data-sources.md).
+/data/*
+!/data/README.md

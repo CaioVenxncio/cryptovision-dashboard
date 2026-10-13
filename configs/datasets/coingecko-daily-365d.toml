@@ -1,0 +1,65 @@
+# Ephemeral CoinGecko cache: daily USD price, market cap and volume for the last 365 days.
+# CoinGecko API terms (§6.1.1) require stored data to be refreshed at least every 24 hours,
+# so this dataset expires 24 hours after retrieval and is never archived or committed.
+# Uses one API credit per asset (9 credits).
+[dataset]
+id = "coingecko-daily-365d-top10-20210103"
+version = "1.0.0"
+description = """\
+Daily CoinGecko aggregated USD prices (00:00 UTC points), market capitalization and \
+24h volume for the same asset universe as the Binance research dataset, last 365 days. \
+Short-lived cache for comparison only."""
+provider = "coingecko"
+frequency = "1d"
+quote_currency = "USD"
+lookback_days = 365
+
+[dataset.selection]
+rule = "Same universe as binance-spot-1d-top10-20210103 (see that config for the rule)."
+reference = "https://coinmarketcap.com/historical/20210103/"
+snapshot_date = 2021-01-03
+
+[[dataset.assets]]
+asset_id = "bitcoin"
+symbol = "BTC"
+coingecko_id = "bitcoin"
+
+[[dataset.assets]]
+asset_id = "ethereum"
+symbol = "ETH"
+coingecko_id = "ethereum"
+
+[[dataset.assets]]
+asset_id = "litecoin"
+symbol = "LTC"
+coingecko_id = "litecoin"
+
+[[dataset.assets]]
+asset_id = "ripple"
+symbol = "XRP"
+coingecko_id = "ripple"
+
+[[dataset.assets]]
+asset_id = "polkadot"
+symbol = "DOT"
+coingecko_id = "polkadot"
+
+[[dataset.assets]]
+asset_id = "bitcoin-cash"
+symbol = "BCH"
+coingecko_id = "bitcoin-cash"
+
+[[dataset.assets]]
+asset_id = "cardano"
+symbol = "ADA"
+coingecko_id = "cardano"
+
+[[dataset.assets]]
+asset_id = "binancecoin"
+symbol = "BNB"
+coingecko_id = "binancecoin"
+
+[[dataset.assets]]
+asset_id = "chainlink"
+symbol = "LINK"
+coingecko_id = "chainlink"

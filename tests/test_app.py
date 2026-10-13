@@ -59,7 +59,7 @@ def test_renders_market_data(configured, mocked_api):
     text = all_text(at)
     assert "Provider data last updated:** 2026-10-13 12:01:00 UTC" in text
     assert "Retrieved just now" in text
-    assert "Data provided by CoinGecko" in text
+    assert "Powered by CoinGecko" in text
     assert "1 selected asset(s) report no market cap" in text
 
 

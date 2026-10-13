@@ -11,11 +11,11 @@ CryptoVision is a Python and Streamlit application for exploring cryptocurrency 
 | Module | Status |
 |---|---|
 | Market Explorer | Available |
-| Historical data pipeline | Planned (Phase 3) |
+| Historical data pipeline | Available (command line) |
 | Quantitative Analytics | Planned (Phase 4) |
 | Research Lab | Planned (Phase 5) |
 
-Historical analysis and statistical research are **not available yet**. The current application shows a cached snapshot of current market data only.
+Quantitative analytics and statistical research are **not available yet**. The dashboard shows current market data. The historical data pipeline builds validated research datasets, but no analysis is performed on them yet.
 
 ## Features
 
@@ -25,6 +25,11 @@ Historical analysis and statistical research are **not available yet**. The curr
 - **Data freshness**: the provider's last-update time and the fetch time are shown in UTC, together with whether the data came from the cache.
 - **CSV export**: an in-memory download of raw values at full precision, with currency, source and fetch-time columns.
 - **Interactive charts**: market cap (linear or log scale) and 24h price change, built with Plotly.
+- **Historical data pipeline** (`cryptovision-data` CLI):
+  - Builds reproducible daily datasets from Binance Vision archives, each verified against its SHA-256 checksum.
+  - Validates every dataset with explicit fatal/error/warning issues.
+  - Stores Parquet files with a provenance manifest (sources, hashes, configuration, validation report).
+  - Supports offline rebuilds and integrity verification.
 - **API budget protection**:
   - Data is cached for 15 minutes by default.
   - Manual refresh is limited to once per 60 seconds.
@@ -83,6 +88,42 @@ streamlit run app.py
 ```
 
 Then open http://localhost:8501.
+
+## Historical datasets
+
+Datasets are defined by TOML files in `configs/datasets/` and stored under the git-ignored `data/` directory.
+
+| Config | Provider | Retention |
+|---|---|---|
+| `binance-spot-1d-top10-20210103.toml` | Binance Vision, 9 USDT spot pairs, 2021–2025 | Archival research dataset |
+| `coingecko-daily-365d.toml` | CoinGecko, last 365 days | Expires after 24 hours (CoinGecko terms) |
+
+```powershell
+$cfg = "configs\datasets\binance-spot-1d-top10-20210103.toml"
+$ds  = "data\datasets\binance-spot-1d-top10-20210103\1.0.0"
+
+cryptovision-data plan $cfg                      # offline: assets, period, request count
+cryptovision-data collect $cfg                   # dry run, no requests
+cryptovision-data collect $cfg --yes             # download, verify and build
+cryptovision-data list
+cryptovision-data show $ds --issues
+cryptovision-data verify $ds --sources           # recompute every hash
+cryptovision-data validate $ds
+cryptovision-data collect $cfg --offline --force # rebuild from local archives only
+cryptovision-data synthetic --days 90 --seed 42 --anomalies
+cryptovision-data purge-expired                  # delete expired CoinGecko caches
+```
+
+- **Network access:** only `collect --yes` uses the network. Every other command, `collect --offline` and the test suite work offline.
+- **Without the installed script:** run `python -m cryptovision.data` instead of `cryptovision-data`.
+- **Data rights:** never commit or share files from `data/`; provider terms restrict redistribution.
+
+Further reading:
+
+- [Data sources and licensing](docs/data-sources.md)
+- [Data methodology](docs/data-methodology.md)
+- [Reproducibility](docs/reproducibility.md)
+- [Limitations](docs/limitations.md)
 
 ## Development
 
@@ -170,9 +211,12 @@ cryptovision-dashboard/
 │   ├── market.py                 # Numeric DataFrames, aggregates, CSV export
 │   ├── formatting.py             # Display-only formatting
 │   ├── providers/                # HTTP client, CoinGecko client, errors
+│   ├── data/                     # Historical datasets: config, sources, validation, storage, CLI
 │   └── ui/                       # Data loading/cache, components, charts, theme
+├── configs/datasets/             # Dataset definitions (TOML)
+├── data/                         # Local datasets (git-ignored)
 ├── tests/                        # Offline test suite
-├── docs/architecture.md          # Detailed architecture
+├── docs/                         # Architecture, data sources, methodology, reproducibility, limitations
 └── .github/workflows/ci.yml      # Continuous integration
 ```
 
@@ -180,11 +224,11 @@ See [docs/architecture.md](docs/architecture.md) for the data flow, caching, err
 
 ## Data provider and limitations
 
-Market data is provided by [CoinGecko](https://www.coingecko.com/en/api) through the Demo API.
+Live market data is powered by [CoinGecko](https://www.coingecko.com/en/api) through the Demo API. Historical research datasets come from [Binance Vision](https://data.binance.vision) under CC BY-NC-SA 4.0 (see [data sources](docs/data-sources.md)).
 
 - **Not real-time.** CoinGecko refreshes Demo data about every 60 seconds, and CryptoVision reuses fetched data for up to `CACHE_TTL_SECONDS`.
 - **Request budget.** The Demo plan has a monthly call limit (10,000 calls at the time of writing). Each cache refresh uses one call.
-- **Historical depth.** The Demo plan provides roughly one year of daily and hourly history, which will constrain the research design.
+- **Historical depth.** The Demo plan provides roughly one year of history, and CoinGecko's terms allow caching it for at most 24 hours. Multi-year research therefore uses Binance Vision, whose prices are exchange-specific and quoted in USDT, not USD.
 - **Scope.** Only USD and the top 100 assets by market cap are fetched. Totals cover the selected assets only.
 - **Cache scope.** The cache is held in memory per server process and is lost on restart.
 - **Attribution.** CoinGecko requires attribution, which the app displays.
@@ -195,7 +239,7 @@ Check [CoinGecko's pricing page](https://www.coingecko.com/en/api/pricing) for c
 
 1. Secure CoinGecko migration (complete)
 2. Engineering foundation: CI, coverage, UI modularization, secret scanning (complete)
-3. Historical data pipeline with provenance records
+3. Historical data pipeline with provenance records (complete)
 4. Quantitative analytics: returns, volatility, drawdown, correlation
 5. Research Lab: reproducible volatility and correlation experiments
 6. Multipage UI, offline demo mode and release

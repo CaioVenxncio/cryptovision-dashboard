@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cryptovision"
-version = "0.2.0"
+version = "0.3.0"
 description = "A reproducible cryptocurrency market analytics and research platform."
 readme = "README.md"
 license = "MIT"
@@ -20,13 +20,18 @@ license-files = ["LICENSE"]
 authors = [{ name = "Caio Venancio" }]
 requires-python = ">=3.12"
 dependencies = [
+    "numpy>=2.0",
     "pandas>=2.2.3",
     "plotly>=5.24",
+    "pyarrow>=17.0",
     "pydantic>=2.9",
     "python-dotenv>=1.0",
     "requests>=2.32",
     "streamlit>=1.44",
 ]
+
+[project.scripts]
+cryptovision-data = "cryptovision.data.cli:main"
 
 [project.optional-dependencies]
 dev = [

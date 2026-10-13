@@ -34,6 +34,10 @@ class ProviderUnavailableError(ProviderError):
 class ProviderRequestError(ProviderError):
     """The provider rejected the request (HTTP 4xx other than 401, 403 and 429)."""
 
+    def __init__(self, message: str, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
 
 class ResponseSchemaError(ProviderError):
     """The response body is not valid JSON or does not match the expected schema."""

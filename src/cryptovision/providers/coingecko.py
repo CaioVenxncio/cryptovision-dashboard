@@ -17,22 +17,36 @@ import requests
 from pydantic import SecretStr, ValidationError
 
 from cryptovision.config import DEFAULT_COINGECKO_BASE_URL, Settings
-from cryptovision.models import MarketCoin, MarketSnapshot, SimplePriceQuote, SimplePriceResult
+from cryptovision.models import (
+    MarketChart,
+    MarketCoin,
+    MarketSnapshot,
+    SimplePriceQuote,
+    SimplePriceResult,
+)
 from cryptovision.providers.errors import MissingApiKeyError, ResponseSchemaError
 from cryptovision.providers.http_client import HttpJsonClient, RetryPolicy
 
 logger = logging.getLogger(__name__)
 
 PROVIDER_NAME = "CoinGecko"
-ATTRIBUTION_TEXT = "Data provided by CoinGecko"
+# Wording required by CoinGecko API terms §4.4.
+ATTRIBUTION_TEXT = "Powered by CoinGecko"
 ATTRIBUTION_URL = "https://www.coingecko.com/en/api"
 API_KEY_HEADER = "x-cg-demo-api-key"
 
 MARKETS_ENDPOINT = "/coins/markets"
+MARKET_CHART_ENDPOINT = "/coins/{id}/market_chart"
 SIMPLE_PRICE_ENDPOINT = "/simple/price"
 MAX_PER_PAGE = 250
 
+# Documented auto-granularity: ranges above 90 days return daily points at 00:00 UTC.
+# The Demo plan provides about one year of history, so requests stay within 365 days.
+MIN_DAILY_CHART_DAYS = 91
+MAX_DEMO_CHART_DAYS = 365
+
 _VS_CURRENCY_PATTERN = re.compile(r"^[a-z]{2,10}$")
+_COIN_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 
 def _validate_vs_currency(vs_currency: str) -> str:
@@ -71,6 +85,10 @@ class CoinGeckoClient:
             retry_policy=retry_policy,
             session=session,
             sleep=sleep or time.sleep,
+            auth_error_message=(
+                "The provider rejected the API key (HTTP {status}). "
+                "Check COINGECKO_API_KEY and that it is a Demo plan key."
+            ),
         )
         self._clock = clock or (lambda: datetime.now(UTC))
 
@@ -185,3 +203,42 @@ class CoinGeckoClient:
             quotes=quotes,
             missing_ids=tuple(missing),
         )
+
+    def get_daily_market_chart(
+        self, coin_id: str, *, days: int, vs_currency: str = "usd"
+    ) -> MarketChart:
+        """Fetch daily price, market cap and volume history for one coin (one API credit).
+
+        No `interval` parameter is sent. Daily granularity comes from the documented
+        automatic rule for ranges above 90 days. The response may also contain a
+        final intraday point for the current day; callers must handle it.
+        """
+        _validate_vs_currency(vs_currency)
+        if not _COIN_ID_PATTERN.match(coin_id):
+            raise ValueError(f"Invalid coin id: {coin_id!r}")
+        if not MIN_DAILY_CHART_DAYS <= days <= MAX_DEMO_CHART_DAYS:
+            raise ValueError(
+                f"days must be between {MIN_DAILY_CHART_DAYS} and {MAX_DEMO_CHART_DAYS} "
+                "for daily data on the Demo plan"
+            )
+        path = MARKET_CHART_ENDPOINT.format(id=coin_id)
+        payload = self._http.get_json(path, {"vs_currency": vs_currency, "days": str(days)})
+        fetched_at = self._clock()
+        if not isinstance(payload, dict) or not all(
+            isinstance(payload.get(key), list) for key in ("prices", "market_caps", "total_volumes")
+        ):
+            raise ResponseSchemaError(f"{path} returned an unexpected structure.")
+        try:
+            return MarketChart(
+                provider=PROVIDER_NAME,
+                endpoint=MARKET_CHART_ENDPOINT,
+                coin_id=coin_id,
+                vs_currency=vs_currency,
+                days=days,
+                fetched_at=fetched_at,
+                prices=payload["prices"],
+                market_caps=payload["market_caps"],
+                total_volumes=payload["total_volumes"],
+            )
+        except (ValidationError, ValueError):
+            raise ResponseSchemaError(f"{path} returned invalid data points.") from None

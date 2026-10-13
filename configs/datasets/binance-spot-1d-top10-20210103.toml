@@ -1,0 +1,78 @@
+# Archival research dataset: Binance Vision spot daily candles, 2021-2025.
+# Collect with:  cryptovision-data collect configs/datasets/binance-spot-1d-top10-20210103.toml --yes
+[dataset]
+id = "binance-spot-1d-top10-20210103"
+version = "1.0.0"
+description = """\
+Daily Binance spot candles (USDT pairs) for the non-stablecoin, non-wrapped assets \
+among the 10 largest by market capitalization on 2021-01-03, covering 2021-01-01 to \
+2025-12-31. Prices are Binance exchange prices in USDT, not aggregated USD prices."""
+provider = "binance_vision"
+frequency = "1d"
+quote_currency = "USDT"
+start = 2021-01-01
+end = 2025-12-31
+
+[dataset.selection]
+rule = """\
+Take the CoinMarketCap historical snapshot dated 2021-01-03. Exclude stablecoins \
+(USDT, USDC) and wrapped tokens (WBTC). Keep the first 10 remaining assets by market \
+capitalization. Include an asset only if a Binance USDT spot pair has daily archives \
+for every month of the study period; record every exclusion."""
+reference = "https://coinmarketcap.com/historical/20210103/"
+snapshot_date = 2021-01-03
+excluded = [
+  { symbol = "USDT", reason = "Stablecoin (rank 3)." },
+  { symbol = "USDC", reason = "Stablecoin (rank 11)." },
+  { symbol = "WBTC", reason = "Wrapped token tracking BTC (rank 12)." },
+  { symbol = "BSV", reason = "10th eligible asset (rank 13) but no Binance USDT spot archives exist (delisted from Binance in 2019). Survivorship-bias evidence." },
+]
+
+[dataset.validation]
+max_missing_fraction = 0.005
+max_consecutive_missing = 3
+
+[[dataset.assets]]
+asset_id = "bitcoin"
+symbol = "BTC"
+pair = "BTCUSDT"
+
+[[dataset.assets]]
+asset_id = "ethereum"
+symbol = "ETH"
+pair = "ETHUSDT"
+
+[[dataset.assets]]
+asset_id = "litecoin"
+symbol = "LTC"
+pair = "LTCUSDT"
+
+[[dataset.assets]]
+asset_id = "ripple"
+symbol = "XRP"
+pair = "XRPUSDT"
+
+[[dataset.assets]]
+asset_id = "polkadot"
+symbol = "DOT"
+pair = "DOTUSDT"
+
+[[dataset.assets]]
+asset_id = "bitcoin-cash"
+symbol = "BCH"
+pair = "BCHUSDT"
+
+[[dataset.assets]]
+asset_id = "cardano"
+symbol = "ADA"
+pair = "ADAUSDT"
+
+[[dataset.assets]]
+asset_id = "binancecoin"
+symbol = "BNB"
+pair = "BNBUSDT"
+
+[[dataset.assets]]
+asset_id = "chainlink"
+symbol = "LINK"
+pair = "LINKUSDT"

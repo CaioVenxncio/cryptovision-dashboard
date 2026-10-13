@@ -4,7 +4,12 @@ This document describes the architecture as currently implemented. Planned work 
 
 ## 1. Purpose
 
-CryptoVision is an educational and research-oriented cryptocurrency market analytics application. The current release provides a **Market Explorer** backed by the CoinGecko Demo API. Later phases will add a historical data pipeline, quantitative analytics and a reproducible Research Lab.
+CryptoVision is an educational and research-oriented cryptocurrency market analytics application. The current release provides:
+
+- a **Market Explorer** backed by the CoinGecko Demo API;
+- a **historical data pipeline** that builds validated, hash-verified Parquet datasets with provenance manifests.
+
+Later phases will add quantitative analytics and a reproducible Research Lab.
 
 The project deliberately stays a single Python package with a Streamlit front end. There is no separate backend service, database or frontend framework.
 
@@ -64,6 +69,15 @@ Dependencies point one way: `app.py` → `ui` → domain modules (`market`, `for
 | `cryptovision/ui/components.py` | Reusable Streamlit components: sidebar, metrics, table, export, error states and footer. |
 | `cryptovision/ui/charts.py` | Pure Plotly figure builders. |
 | `cryptovision/ui/theme.py` | Colors and shared visual constants. |
+| `cryptovision/data/config.py` | Dataset TOML configuration, validated with Pydantic. |
+| `cryptovision/data/schemas.py` | Arrow schemas for the `ohlcv` and `price_series` dataset kinds. |
+| `cryptovision/data/sources/` | Binance Vision archive download, checksum verification and parsing; CoinGecko chart normalization. |
+| `cryptovision/data/validate.py` | Integrity checks with fatal/error/warning issues and rejected-row tracking. |
+| `cryptovision/data/storage.py` | Atomic writes, Parquet I/O, canonical content hashing. |
+| `cryptovision/data/provenance.py` | Dataset manifest model. |
+| `cryptovision/data/pipeline.py` | Planning, collection, atomic dataset assembly, verification, loading, cache expiry. |
+| `cryptovision/data/synthetic.py` | Deterministic synthetic OHLCV data with optional injected defects. |
+| `cryptovision/data/cli.py` | `cryptovision-data` command-line interface. |
 
 ## 4. Data flow
 
@@ -149,6 +163,7 @@ All tests run offline. The `responses` library intercepts every `requests` call,
 | `test_market_data.py` | Cache reuse, expiry, cooldown and recovery |
 | `test_charts.py`, `test_components.py` | Figure contents and table display formatting |
 | `test_app.py` | The real `app.py` via Streamlit's `AppTest`: rendering, request counts across reruns, refresh, errors and recovery |
+| `test_data_*.py` | Dataset configs, Binance archive parsing and checksum handling, CoinGecko chart parsing, validation rules and thresholds, Parquet round trips, hashing, atomic writes, interrupted runs, offline rebuilds, cache expiry, CLI commands |
 
 Coverage is measured with branch coverage over `cryptovision` and `app.py`. A minimum of 90% is enforced (`fail_under` in `pyproject.toml`).
 
@@ -164,6 +179,7 @@ Coverage is measured with branch coverage over `cryptovision` and `app.py`. A mi
 ## 12. Security
 
 - `.env`, `.env.*` (except `.env.example`), `.streamlit/secrets.toml`, virtual environments, caches and coverage output are git-ignored.
+- **Market data:** `data/` (except `data/README.md`) is git-ignored, because provider terms restrict redistribution. Manifests contain no credentials.
 - **Pre-commit hooks** (`.pre-commit-config.yaml`):
   - Gitleaks scans staged changes for secrets.
   - Ruff lints and formats the code.
@@ -172,6 +188,8 @@ Coverage is measured with branch coverage over `cryptovision` and `app.py`. A mi
 - **Known historical exposure:** commit `ca9f2df` contains a CoinMarketCap API key in `api.py`. Gitleaks reports it when scanning the full history. The code no longer uses it. History is intentionally not rewritten, so revoking the key is an action only the repository owner can take.
 
 ## 13. Known limitations
+
+Data and research limitations are covered in [limitations.md](limitations.md). Application limitations:
 
 - The cache lives in process memory. It is lost on restart and not shared between server processes.
 - The failure cooldown is per browser session.
@@ -183,11 +201,8 @@ Coverage is measured with branch coverage over `cryptovision` and `app.py`. A mi
 
 ## 14. Planned evolution
 
-These phases are **not implemented yet**.
+Phase 3, the historical data pipeline, is implemented; see [data-methodology.md](data-methodology.md). The following phases are **not implemented yet**.
 
-- **Phase 3, historical data pipeline**:
-  - Collect daily history from CoinGecko, or another source if needed.
-  - Validate it and store it as Parquet with a provenance manifest (source, retrieval time, content hash).
 - **Phase 4, quantitative analytics**:
   - Returns, volatility, drawdown and correlation in a Streamlit-free `analytics` package.
   - Tests against analytically known values.
