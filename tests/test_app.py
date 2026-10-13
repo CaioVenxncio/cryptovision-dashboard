@@ -8,6 +8,7 @@ import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
+from cryptovision.ui import market_data
 from tests.conftest import BASE_URL, FAKE_KEY, load_fixture
 
 APP_PATH = str(Path(__file__).resolve().parents[1] / "app.py")
@@ -31,6 +32,14 @@ def run_app() -> AppTest:
     return AppTest.from_file(APP_PATH, default_timeout=30).run()
 
 
+def all_text(at: AppTest) -> str:
+    parts = [e.value for e in at.markdown] + [e.value for e in at.caption]
+    parts += (
+        [e.value for e in at.error] + [e.value for e in at.warning] + [e.value for e in at.info]
+    )
+    return "\n".join(str(p) for p in parts)
+
+
 def test_renders_market_data(configured, mocked_api):
     mocked_api.get(MARKETS_URL, json=load_fixture("coins_markets.json"))
 
@@ -39,9 +48,19 @@ def test_renders_market_data(configured, mocked_api):
     assert not at.exception
     assert not at.error
     labels = [metric.label for metric in at.metric]
-    assert "Selected Assets Market Cap" in labels
-    assert not any("Total" in label for label in labels)
+    assert labels == [
+        "Selected Assets Market Cap",
+        "Selected Assets 24h Volume",
+        "Selected Assets Market Cap Change (24h)",
+    ]
+    assert [metric.value for metric in at.metric] == ["$1.50T", "$45.00B", "+1.01%"]
     assert len(at.dataframe) == 1
+    assert [s.value for s in at.subheader][:1] == ["Top 3 Assets by Market Cap"]
+    text = all_text(at)
+    assert "Provider data last updated:** 2026-10-13 12:01:00 UTC" in text
+    assert "Retrieved just now" in text
+    assert "Data provided by CoinGecko" in text
+    assert "1 selected asset(s) report no market cap" in text
 
 
 def test_slider_and_reruns_reuse_cached_data(configured, mocked_api):
@@ -50,10 +69,33 @@ def test_slider_and_reruns_reuse_cached_data(configured, mocked_api):
     at = run_app()
     at.slider[0].set_value(5).run()
     at.slider[0].set_value(20).run()
+    at.checkbox[0].check().run()
     at.run()
 
     assert not at.exception
     assert len(mocked_api.calls) == 1
+    assert "Cached copy" in all_text(at)
+
+
+def test_refresh_button_disabled_while_data_is_fresh(configured, mocked_api):
+    mocked_api.get(MARKETS_URL, json=load_fixture("coins_markets.json"))
+
+    at = run_app()
+
+    assert at.button[0].label == "Refresh data"
+    assert at.button[0].disabled is True
+
+
+def test_refresh_button_fetches_new_data_when_allowed(configured, mocked_api, monkeypatch):
+    monkeypatch.setattr(market_data, "MIN_MANUAL_REFRESH_SECONDS", 0)
+    mocked_api.get(MARKETS_URL, json=load_fixture("coins_markets.json"))
+
+    at = run_app()
+    assert at.button[0].disabled is False
+    at.button[0].click().run()
+
+    assert not at.exception
+    assert len(mocked_api.calls) == 2
 
 
 def test_missing_key_shows_setup_instructions_without_requests(mocked_api):
@@ -61,6 +103,17 @@ def test_missing_key_shows_setup_instructions_without_requests(mocked_api):
 
     assert not at.exception
     assert any("No CoinGecko API key" in warning.value for warning in at.warning)
+    assert len(mocked_api.calls) == 0
+
+
+def test_invalid_configuration_stops_before_any_request(configured, monkeypatch, mocked_api):
+    monkeypatch.setenv("CACHE_TTL_SECONDS", "5")
+
+    at = run_app()
+
+    assert not at.exception
+    assert "CACHE_TTL_SECONDS" in at.error[0].value
+    assert len(at.metric) == 0
     assert len(mocked_api.calls) == 0
 
 
@@ -74,8 +127,23 @@ def test_provider_failure_is_reported_safely_and_not_retried_on_rerun(configured
     messages = " ".join(error.value for error in at.error)
     assert "Market data is unavailable" in messages
     assert FAKE_KEY not in messages
+    assert any("try again" in info.value for info in at.info)
     # The failure cooldown prevents a second request on the rerun.
     assert len(mocked_api.calls) == 1
+
+
+def test_app_recovers_after_cooldown(configured, mocked_api, monkeypatch):
+    monkeypatch.setattr(market_data, "FAILURE_COOLDOWN_SECONDS", 0)
+    mocked_api.get(MARKETS_URL, status=503)
+    mocked_api.get(MARKETS_URL, json=load_fixture("coins_markets.json"))
+
+    at = run_app()
+    assert at.error
+    at.run()
+
+    assert not at.error
+    assert len(at.metric) == 3
+    assert len(mocked_api.calls) == 2
 
 
 def test_auth_failure_message(configured, mocked_api):
@@ -84,3 +152,21 @@ def test_auth_failure_message(configured, mocked_api):
     at = run_app()
 
     assert any("rejected the API key" in error.value for error in at.error)
+
+
+def test_empty_provider_response(configured, mocked_api):
+    mocked_api.get(MARKETS_URL, json=[])
+
+    at = run_app()
+
+    assert not at.exception
+    assert any("no market data" in info.value for info in at.info)
+
+
+def test_invalid_records_are_reported(configured, mocked_api):
+    payload = load_fixture("coins_markets.json") + [{"name": "missing id"}]
+    mocked_api.get(MARKETS_URL, json=payload)
+
+    at = run_app()
+
+    assert any("1 record(s)" in warning.value for warning in at.warning)

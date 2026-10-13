@@ -8,6 +8,14 @@ version = "0.2.0"
 description = "A reproducible cryptocurrency market analytics and research platform."
 readme = "README.md"
 license = "MIT"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Framework :: Streamlit",
+    "Intended Audience :: Science/Research",
+]
 license-files = ["LICENSE"]
 authors = [{ name = "Caio Venancio" }]
 requires-python = ">=3.12"
@@ -23,7 +31,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pip-tools>=7.4",
+    "pre-commit>=4.0",
     "pytest>=8.3",
+    "pytest-cov>=6.0",
     "responses>=0.25",
     "ruff>=0.8",
 ]
@@ -31,9 +41,29 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# Shared pip-compile options, so lock files are always generated the same way.
+[tool.pip-tools]
+strip-extras = true
+no-emit-index-url = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+
+[tool.coverage.run]
+branch = true
+source = ["cryptovision", "app"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 90
+skip_covered = false
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.ruff]
 line-length = 100

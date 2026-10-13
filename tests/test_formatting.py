@@ -65,6 +65,8 @@ def test_format_utc_converts_offsets():
     assert format_utc(moment) == "2026-10-13 12:00:00 UTC"
     assert format_utc(datetime(2026, 1, 1, tzinfo=UTC)) == "2026-01-01 00:00:00 UTC"
     assert format_utc(None) == MISSING
+    # Naive datetimes are interpreted as UTC, never as local time.
+    assert format_utc(datetime(2026, 10, 13, 12, 0, 0)) == "2026-10-13 12:00:00 UTC"
 
 
 @pytest.mark.parametrize(

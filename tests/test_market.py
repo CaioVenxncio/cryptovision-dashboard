@@ -117,3 +117,8 @@ def test_csv_export_does_not_touch_the_filesystem(snapshot, tmp_path, monkeypatc
 
 def test_export_filename(snapshot):
     assert export_filename(snapshot) == "cryptovision_markets_usd_20261013T120500Z.csv"
+
+
+def test_naive_provider_timestamps_are_treated_as_utc():
+    coin = MarketCoin(id="x", symbol="x", name="X", last_updated="2026-10-13T12:00:00")
+    assert coin.last_updated.isoformat() == "2026-10-13T12:00:00+00:00"

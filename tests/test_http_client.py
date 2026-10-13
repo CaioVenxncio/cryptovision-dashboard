@@ -20,6 +20,7 @@ def test_backoff_doubles_and_is_capped():
         (" 12 ", 12.0),
         ("Tue, 13 Oct 2026 12:00:30 GMT", 30.0),
         ("Tue, 13 Oct 2026 11:00:00 GMT", 0.0),
+        ("Tue, 13 Oct 2026 12:00:10 -0000", 10.0),
         ("soon", None),
         (None, None),
     ],

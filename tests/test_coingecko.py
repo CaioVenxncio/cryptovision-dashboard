@@ -299,3 +299,20 @@ def test_invalid_market_arguments_are_rejected_locally(client, kwargs, message):
 def test_simple_price_requires_ids(client):
     with pytest.raises(ValueError):
         client.get_simple_price([" ", ""])
+
+
+def test_unexpected_request_error_is_not_retried(client, mocked_api, sleeps):
+    mocked_api.get(MARKETS_URL, body=requests.TooManyRedirects("redirect loop"))
+
+    with pytest.raises(ProviderUnavailableError, match="TooManyRedirects"):
+        client.get_markets()
+
+    assert len(mocked_api.calls) == 1
+    assert sleeps == []
+
+
+def test_simple_price_unexpected_top_level_structure(client, mocked_api):
+    mocked_api.get(SIMPLE_URL, json=[{"bitcoin": {"usd": 1}}])
+
+    with pytest.raises(ResponseSchemaError, match="unexpected structure"):
+        client.get_simple_price(["bitcoin"])
