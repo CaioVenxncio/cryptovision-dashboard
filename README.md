@@ -13,9 +13,9 @@ CryptoVision is a Python and Streamlit application for exploring cryptocurrency 
 | Market Explorer | Available |
 | Historical data pipeline | Available (command line) |
 | Quantitative Analytics | Available (descriptive) |
-| Research Lab | Planned (Phase 5) |
+| Research Lab | Available (one pre-specified study) |
 
-Statistical research (hypothesis tests, regime experiments) is **not available yet**. The analytics are descriptive summaries of historical data, not research findings.
+The Research Lab runs one locally pre-specified study: whether average return correlations differ between high- and low-volatility regimes. Its results are generated locally from the git-ignored dataset and are not distributed with the repository. The study is not peer reviewed and was not externally registered.
 
 ## Features
 
@@ -37,6 +37,13 @@ Statistical research (hypothesis tests, regime experiments) is **not available y
   - Pearson and Spearman correlation matrices with sample counts, and rolling correlation.
   - Calendar-aware gap handling: no interpolation and no forward-filling.
   - Works offline on validated local datasets only.
+- **Research Lab** (`cryptovision-research` CLI and a dashboard page):
+  - A frozen, hash-locked protocol and configuration.
+  - A strictly past volatility-regime classification.
+  - A stationary block bootstrap that resamples whole days jointly across assets.
+  - Synthetic validation with a pre-specified gate before any empirical inference.
+  - A pre-specified robustness grid.
+  - Immutable, hash-verified result bundles and a generated academic report.
 - **API budget protection**:
   - Data is cached for 15 minutes by default.
   - Manual refresh is limited to once per 60 seconds.
@@ -94,7 +101,7 @@ The key is sent only in the `x-cg-demo-api-key` request header, never in URLs, l
 streamlit run app.py
 ```
 
-Then open http://localhost:8501. Use the sidebar to switch between **Market Explorer** (live CoinGecko data) and **Historical Analytics** (local datasets, offline). The analytics page lists only research-ready, unexpired datasets from `data/` (override with `CRYPTOVISION_DATA_DIR`).
+Then open http://localhost:8501. Use the sidebar to switch between **Market Explorer** (live CoinGecko data), **Historical Analytics** (local datasets, offline) and **Research Lab** (pre-computed result bundles, offline). The analytics page lists only research-ready, unexpired datasets from `data/` (override with `CRYPTOVISION_DATA_DIR`).
 
 ## Historical datasets
 
@@ -103,7 +110,7 @@ Datasets are defined by TOML files in `configs/datasets/` and stored under the g
 | Config | Provider | Retention |
 |---|---|---|
 | `binance-spot-1d-top10-20210103.toml` | Binance Vision, 9 USDT spot pairs, 2021–2025 | Archival research dataset |
-| `coingecko-daily-365d.toml` | CoinGecko, last 365 days | Expires after 24 hours (CoinGecko terms) |
+| `coingecko-daily-365d.toml` | CoinGecko, last 365 days | **Disabled**: storing CoinGecko history is turned off pending an encryption design (CoinGecko terms §6.1.2) |
 
 ```powershell
 $cfg = "configs\datasets\binance-spot-1d-top10-20210103.toml"
@@ -130,8 +137,29 @@ Further reading:
 - [Data sources and licensing](docs/data-sources.md)
 - [Data methodology](docs/data-methodology.md)
 - [Analytics methodology](docs/analytics-methodology.md)
+- [Research methodology](docs/research-methodology.md), [research reproducibility](docs/research-reproducibility.md), [research limitations](docs/research-limitations.md)
 - [Reproducibility](docs/reproducibility.md)
 - [Limitations](docs/limitations.md)
+
+## Research Lab
+
+The study asks: *do correlations among major cryptocurrency returns differ between periods of relatively high and low market volatility?*
+
+- **Protocol:** written and frozen before any regime-conditional statistic was computed: [protocol](research/protocols/volatility-correlation-v1.md), [configuration](configs/experiments/volatility-correlation-v1.toml) and hash [lock](research/protocols/volatility-correlation-v1.lock.json).
+- **Workflow** (offline, after the dataset has been built):
+
+```powershell
+$exp = "configs\experiments\volatility-correlation-v1.toml"
+cryptovision-research validate $exp     # protocol unchanged since freezing?
+cryptovision-research plan $exp
+cryptovision-research simulate $exp     # synthetic method validation and gate (~30 min)
+cryptovision-research run $exp          # primary analysis, robustness, report
+cryptovision-research list
+cryptovision-research verify research\results\volatility-correlation\<bundle>
+```
+
+- **Results:** written to `research/results/`, which is git-ignored because the results are derived from provider data. Each bundle contains `results.json`, `regimes.csv`, `robustness.csv`, `report.md`, snapshots of the config and lock, and a hash manifest. The Research Lab page shows them.
+- **Further reading:** [research methodology](docs/research-methodology.md), [reproducibility](docs/research-reproducibility.md), [limitations](docs/research-limitations.md).
 
 ## Development
 
@@ -222,8 +250,11 @@ cryptovision-dashboard/
 │   ├── providers/                # HTTP client, CoinGecko client, errors
 │   ├── data/                     # Historical datasets: config, sources, validation, storage, CLI
 │   ├── analytics/                # Returns, volatility, drawdown, correlation (Streamlit-free)
+│   ├── research/                 # Protocol lock, regimes, estimands, bootstrap, simulation, artifacts, CLI
 │   └── ui/                       # Data loading/cache, components, charts, theme
 ├── configs/datasets/             # Dataset definitions (TOML)
+├── configs/experiments/          # Frozen experiment configurations (TOML)
+├── research/protocols/           # Frozen research protocols and their hash locks
 ├── data/                         # Local datasets (git-ignored)
 ├── tests/                        # Offline test suite
 ├── docs/                         # Architecture, data and analytics methodology, reproducibility, limitations
@@ -238,7 +269,7 @@ Live market data is powered by [CoinGecko](https://www.coingecko.com/en/api) thr
 
 - **Not real-time.** CoinGecko refreshes Demo data about every 60 seconds, and CryptoVision reuses fetched data for up to `CACHE_TTL_SECONDS`.
 - **Request budget.** The Demo plan has a monthly call limit (10,000 calls at the time of writing). Each cache refresh uses one call.
-- **Historical depth.** The Demo plan provides roughly one year of history, and CoinGecko's terms allow caching it for at most 24 hours. Multi-year research therefore uses Binance Vision, whose prices are exchange-specific and quoted in USDT, not USD.
+- **Historical depth.** The Demo plan provides roughly one year of history, and CoinGecko's terms restrict storing it (refresh within 24 hours, strong encryption). CryptoVision therefore does not store CoinGecko history; research uses Binance Vision, whose prices are exchange-specific and quoted in USDT, not USD.
 - **Scope.** Only USD and the top 100 assets by market cap are fetched. Totals cover the selected assets only.
 - **Cache scope.** The cache is held in memory per server process and is lost on restart.
 - **Attribution.** CoinGecko requires attribution, which the app displays.
@@ -251,7 +282,7 @@ Check [CoinGecko's pricing page](https://www.coingecko.com/en/api/pricing) for c
 2. Engineering foundation: CI, coverage, UI modularization, secret scanning (complete)
 3. Historical data pipeline with provenance records (complete)
 4. Quantitative analytics: returns, volatility, drawdown, correlation (complete)
-5. Research Lab: reproducible volatility and correlation experiments
+5. Research Lab: reproducible volatility and correlation experiments (complete)
 6. Multipage UI, offline demo mode and release
 
 ## License

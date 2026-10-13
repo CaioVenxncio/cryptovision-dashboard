@@ -6,7 +6,7 @@ This document records the evaluation behind CryptoVision's historical data desig
 
 | | CoinGecko Demo API | Binance Vision public data |
 |---|---|---|
-| Role in CryptoVision | Live Market Explorer; **ephemeral** 24-hour history cache | **Archival** research datasets |
+| Role in CryptoVision | Live Market Explorer (in-memory cache only); storing history is **disabled** | **Archival** research datasets |
 | What a price is | Aggregated price across venues, sampled at 00:00 UTC | One exchange's candle (open/high/low/close) for one pair |
 | Quote currency | USD (and other fiat/crypto) | The pair's quote asset, e.g. USDT. **Not USD.** |
 | Market capitalization | Yes | No |
@@ -46,7 +46,23 @@ This document records the evaluation behind CryptoVision's historical data desig
 - A `purge-expired` command that deletes them.
 - No CoinGecko data committed to Git.
 
-§6.1.2 (encryption) is not implemented in the application. Users who keep the cache should store it on an encrypted disk (for example, BitLocker on Windows). This is a documented limitation.
+**Compliance disposition (Phase 5, 2026-10-13).**
+
+- **Decision:** storing CoinGecko history on disk is **disabled**.
+- **Why:**
+  - §6.1.2 asks that "strong encryption and other security measures" be applied to stored Data, and the cache files are plain Parquet.
+  - Expiry alone does not satisfy an encryption requirement.
+  - Full-disk encryption is outside the application's control and is not necessarily what the terms mean.
+  - Adding application-level encryption would need key management that cannot be justified for an optional comparison feature.
+- **What changed:**
+  - `cryptovision-data collect` refuses CoinGecko configurations before making any request.
+  - `store_dataset` refuses to persist CoinGecko data unless a caller passes an explicit opt-in flag, which only the tests use.
+  - The loader still refuses expired caches.
+- **What is not affected:** the Market Explorer keeps fetched data only in process memory (Streamlit cache, at most 15 minutes), which is not stored Data on disk.
+- **Residual risks:**
+  - Caches created before this change may still exist on disk. They are expired and refused; delete them with `cryptovision-data purge-expired`.
+  - Whether in-memory caching or Streamlit's internal handling counts as "storage" under the terms is a legal question this project does not answer.
+  - Re-enabling persistence would need a reviewed encryption and retention design.
 
 ## Binance Vision
 

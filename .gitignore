@@ -28,3 +28,7 @@ htmlcov/
 # redistribution, so real data is never committed (see docs/data-sources.md).
 /data/*
 !/data/README.md
+
+# Research result bundles are generated locally and may contain statistics
+# derived from provider data; regenerate them with cryptovision-research.
+/research/results/

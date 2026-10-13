@@ -1,0 +1,13 @@
+{
+  "protocol_id": "volatility-correlation",
+  "protocol_version": "1.0",
+  "frozen_at": "2026-10-13T22:24:26+00:00",
+  "files": {
+    "research/protocols/volatility-correlation-v1.md": "f1e8bf268e0fd119d2c44f73d8ecd12383b9415fba1bdedd61afb2a765f490a4",
+    "configs/experiments/volatility-correlation-v1.toml": "8e21e05ae5f47f3ad92440172b54eac1175188cd4febc24a8080ce199fde2b20"
+  },
+  "hash_definition": "SHA-256 of file bytes with CRLF normalized to LF",
+  "repository_head_at_freeze": "157a9865dcf49955ff66eef6dbc98c73df9004ff",
+  "empirical_regime_statistics_seen_before_freeze": false,
+  "statement": "Frozen before implementation of the research engine and before any regime-conditional statistic was computed on the empirical dataset. Locally pre-specified; not externally registered."
+}

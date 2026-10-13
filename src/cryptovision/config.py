@@ -38,6 +38,8 @@ class Settings(BaseModel):
     http_max_retries: int = Field(default=3, ge=0, le=5)
     # Local historical datasets (see docs/data-methodology.md).
     data_dir: Path = PROJECT_ROOT / "data"
+    # Research Lab result bundles (see docs/research-reproducibility.md).
+    results_dir: Path = PROJECT_ROOT / "research" / "results"
 
     @field_validator("coingecko_api_key", mode="before")
     @classmethod
@@ -67,6 +69,7 @@ _ENV_TO_FIELD = {
     "HTTP_TIMEOUT_SECONDS": "http_timeout_seconds",
     "HTTP_MAX_RETRIES": "http_max_retries",
     "CRYPTOVISION_DATA_DIR": "data_dir",
+    "CRYPTOVISION_RESULTS_DIR": "results_dir",
 }
 
 

@@ -136,6 +136,7 @@ def test_loader_refuses_expired_caches(tmp_path, client, mocked_api):
         config_sha256="0" * 64,
         replace=False,
         now=now,
+        allow_unencrypted_coingecko_cache=True,
     )
     expires = stored.manifest.expires_at
 

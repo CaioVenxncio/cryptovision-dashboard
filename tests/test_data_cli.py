@@ -46,31 +46,38 @@ def test_collect_without_yes_is_a_dry_run(capsys, tmp_path, mocked_api):
     assert not (tmp_path / "cache").exists()
 
 
-def test_coingecko_collect_without_key_fails_safely(capsys, tmp_path, mocked_api):
-    code, out = run(
-        capsys,
-        "--data-dir",
-        tmp_path,
-        "collect",
-        CONFIG_DIR / "coingecko-daily-365d.toml",
-        "--yes",
-    )
-    assert code == 1
-    assert "No CoinGecko API key configured" in out
+def test_coingecko_collection_is_disabled_before_any_request(
+    capsys, tmp_path, mocked_api, monkeypatch
+):
+    monkeypatch.setenv("COINGECKO_API_KEY", "test-demo-key-not-real")
+    for flag in ("--yes", "--offline"):
+        code, out = run(
+            capsys,
+            "--data-dir",
+            tmp_path,
+            "collect",
+            CONFIG_DIR / "coingecko-daily-365d.toml",
+            flag,
+        )
+        assert code == 2
+        assert "Storing CoinGecko history is disabled" in out
+        assert "6.1.2" in out
     assert len(mocked_api.calls) == 0
+    assert not (tmp_path / "cache").exists()
 
 
-def test_coingecko_cannot_be_collected_offline(capsys, tmp_path):
-    code, out = run(
-        capsys,
-        "--data-dir",
-        tmp_path,
-        "collect",
-        CONFIG_DIR / "coingecko-daily-365d.toml",
-        "--offline",
-    )
-    assert code == 2
-    assert "cannot be collected offline" in out
+def test_pipeline_refuses_coingecko_persistence_without_opt_in(tmp_path):
+    from cryptovision.data import pipeline
+    from cryptovision.data.config import load_dataset_config
+    from cryptovision.data.errors import PersistenceDisabledError
+
+    config, _ = load_dataset_config(CONFIG_DIR / "coingecko-daily-365d.toml")
+    plan = pipeline.plan_dataset(config, tmp_path)
+    with pytest.raises(PersistenceDisabledError):
+        pipeline.store_dataset(
+            plan, pipeline.CollectedData(frame=None), config_sha256="0" * 64, replace=False
+        )
+    assert not (tmp_path / "cache").exists()
 
 
 def test_synthetic_show_verify_validate_list(capsys, tmp_path):

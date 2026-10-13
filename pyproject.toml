@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cryptovision"
-version = "0.4.0"
+version = "0.5.0"
 description = "A reproducible cryptocurrency market analytics and research platform."
 readme = "README.md"
 license = "MIT"
@@ -32,6 +32,7 @@ dependencies = [
 
 [project.scripts]
 cryptovision-data = "cryptovision.data.cli:main"
+cryptovision-research = "cryptovision.research.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -81,3 +82,5 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "SIM"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106"]
+# Markdown table rows in the report template cannot be wrapped.
+"src/cryptovision/research/report_document.py" = ["E501"]

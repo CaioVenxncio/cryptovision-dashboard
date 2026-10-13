@@ -33,3 +33,7 @@ class DatasetExpiredError(DataPipelineError):
 
 class DatasetIntegrityError(DataPipelineError):
     """Stored files do not match the hashes recorded in the manifest."""
+
+
+class PersistenceDisabledError(DataPipelineError):
+    """Storing this provider's data is disabled for compliance reasons."""

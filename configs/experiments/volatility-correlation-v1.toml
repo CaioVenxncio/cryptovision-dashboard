@@ -1,0 +1,121 @@
+# Experiment configuration for research/protocols/volatility-correlation-v1.md.
+# Frozen together with the protocol (see volatility-correlation-v1.lock.json).
+# Do not edit after freezing; create a new protocol version instead.
+
+[experiment]
+id = "volatility-correlation"
+protocol_version = "1.0"
+protocol_path = "research/protocols/volatility-correlation-v1.md"
+description = "Average pairwise return correlation in high- vs low-volatility regimes."
+
+[dataset]
+id = "binance-spot-1d-top10-20210103"
+version = "1.0.0"
+content_sha256 = "d2da4d6e7087d49b72f9b3e18a67aa72870714f3ef8a7723d4fcab62ab9d8d4e"
+assets = [
+  "bitcoin", "ethereum", "litecoin", "ripple", "polkadot",
+  "bitcoin-cash", "cardano", "binancecoin", "chainlink",
+]
+start = 2021-01-01
+end = 2025-12-31
+
+[primary]
+estimand = "raw"                  # "raw" = Δ on returns; "devolatilized" = Δ_z
+fallback_estimand = "devolatilized"
+return_type = "log"
+correlation = "pearson"
+proxy = "mean_asset_volatility"   # or "asset_volatility" with proxy_asset
+proxy_asset = ""
+lookback_days = 30
+threshold = "full_sample_quantile"  # or "trailing_quantile"
+quantile = 0.5
+trailing_days = 365
+evaluation_start = 2021-01-01     # first day considered; proxy availability applies on top
+min_days_per_regime = 180
+
+[bootstrap]
+method = "stationary"
+replications = 2000
+mean_block_length = 20
+confidence_level = 0.95
+seed = 20261013
+max_rejected_fraction = 0.01
+
+[[robustness]]
+id = "R1"
+label = "Simple returns"
+return_type = "simple"
+
+[[robustness]]
+id = "R2"
+label = "Spearman correlation"
+correlation = "spearman"
+
+[[robustness]]
+id = "R3"
+label = "60-day volatility lookback"
+lookback_days = 60
+
+[[robustness]]
+id = "R4"
+label = "Trailing 365-day median threshold (strictly past)"
+threshold = "trailing_quantile"
+
+[[robustness]]
+id = "R5"
+label = "Upper-quartile threshold"
+quantile = 0.75
+
+[[robustness]]
+id = "R6"
+label = "Mean block length 10"
+mean_block_length = 10
+
+[[robustness]]
+id = "R7"
+label = "Mean block length 40"
+mean_block_length = 40
+
+[[robustness]]
+id = "R8"
+label = "Exclude 2021"
+evaluation_start = 2022-01-01
+
+[[robustness]]
+id = "R9"
+label = "BTC volatility proxy"
+proxy = "asset_volatility"
+proxy_asset = "bitcoin"
+
+[[robustness]]
+id = "R10"
+label = "Exclude BNB"
+exclude_assets = ["binancecoin"]
+
+[[robustness]]
+id = "R11"
+label = "Alternative estimand"
+estimand = "alternative"
+
+[illustration]
+# Methodological illustration only: contemporaneous window including day t.
+id = "I1"
+label = "Contemporaneous 30-day window (includes day t)"
+contemporaneous = true
+
+[simulation]
+n_assets = 5
+n_days = 1800
+short_n_days = 365
+replications = 200
+bootstrap_replications = 499
+mean_block_length = 20
+block_sensitivity = [10, 40]
+pseudo_true_days = 200000
+seed = 20261013
+daily_scale = 0.03
+
+[gate]
+max_null_rejection_rate = 0.10
+max_abs_pseudo_true_null = 0.02
+min_coverage = 0.85

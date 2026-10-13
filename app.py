@@ -21,6 +21,7 @@ navigation = st.navigation(
     [
         st.Page("views/market_explorer.py", title="Market Explorer", icon="📊", default=True),
         st.Page("views/historical_analytics.py", title="Historical Analytics", icon="📈"),
+        st.Page("views/research_lab.py", title="Research Lab", icon="🔬"),
     ]
 )
 navigation.run()

@@ -14,7 +14,6 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from cryptovision.config import ConfigurationError, load_settings
 from cryptovision.data import pipeline, synthetic
 from cryptovision.data.config import DatasetConfigError, load_dataset_config
 from cryptovision.data.errors import DataPipelineError
@@ -23,7 +22,6 @@ from cryptovision.data.schemas import DatasetKind
 from cryptovision.data.sources.binance import BinanceVisionSource
 from cryptovision.data.storage import read_parquet
 from cryptovision.data.validate import validate_dataset
-from cryptovision.providers.coingecko import CoinGeckoClient
 from cryptovision.providers.errors import ProviderError
 
 DEFAULT_DATA_DIR = Path("data")
@@ -95,21 +93,14 @@ def cmd_collect(args: argparse.Namespace) -> int:
         print("\nDry run only. Re-run with --yes to perform the requests above.")
         return 0
 
+    if config.provider == "coingecko":
+        # Checked before any request so that no API credits are spent.
+        print(f"\n{pipeline.COINGECKO_PERSISTENCE_DISABLED}")
+        return 2
+
     progress = print if args.verbose else (lambda _: None)
-    if config.provider == "binance_vision":
-        source = BinanceVisionSource(args.data_dir / "raw")
-        collected = pipeline.collect_binance(plan, source, offline=args.offline, progress=progress)
-    else:
-        if args.offline:
-            print("CoinGecko data cannot be collected offline.")
-            return 2
-        try:
-            settings = load_settings()
-        except ConfigurationError as exc:
-            print(f"Configuration error: {exc}")
-            return 2
-        client = CoinGeckoClient.from_settings(settings)
-        collected = pipeline.collect_coingecko(plan, client, progress=progress)
+    source = BinanceVisionSource(args.data_dir / "raw")
+    collected = pipeline.collect_binance(plan, source, offline=args.offline, progress=progress)
 
     # An expired ephemeral cache is replaced; archival datasets only with --force.
     result = pipeline.store_dataset(

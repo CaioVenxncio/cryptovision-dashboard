@@ -8,9 +8,8 @@ CryptoVision is an educational and research-oriented cryptocurrency market analy
 
 - a **Market Explorer** backed by the CoinGecko Demo API;
 - a **historical data pipeline** that builds validated, hash-verified Parquet datasets with provenance manifests;
-- a **quantitative analytics engine** (returns, volatility, drawdown, correlation) and a Historical Analytics page that works offline on validated datasets.
-
-A later phase will add a reproducible Research Lab.
+- a **quantitative analytics engine** (returns, volatility, drawdown, correlation) and a Historical Analytics page that works offline on validated datasets;
+- a **Research Lab**: a frozen-protocol experiment engine (`cryptovision.research`) with simulation-based method validation, immutable result bundles, a CLI and a read-only dashboard page.
 
 The project deliberately stays a single Python package with a Streamlit front end. There is no separate backend service, database or frontend framework.
 
@@ -61,6 +60,7 @@ Dependencies point one way: `app.py` → `views` → `ui` → domain modules (`m
 | `app.py` | Streamlit entry point: page configuration and `st.navigation` between the two pages. |
 | `views/market_explorer.py` | Market Explorer page: loads settings, calls the data loader and lays out components. |
 | `views/historical_analytics.py` | Historical Analytics page; delegates to `ui/analytics_view.py`. |
+| `views/research_lab.py` | Research Lab page; delegates to `ui/research_view.py` (loads verified bundles only). |
 | `cryptovision/config.py` | Reads environment variables (and `.env` via python-dotenv) into a validated, immutable `Settings` model. |
 | `cryptovision/providers/http_client.py` | Generic JSON-over-HTTP client: timeouts, bounded exponential backoff, `Retry-After` handling, error classification. |
 | `cryptovision/providers/coingecko.py` | CoinGecko-specific requests (`/coins/markets`, `/simple/price`), authentication header and response validation. |
@@ -90,6 +90,17 @@ Dependencies point one way: `app.py` → `views` → `ui` → domain modules (`m
 | `cryptovision/analytics/data.py` | The only loader for real data; goes through the Phase 3 integrity checks. |
 | `cryptovision/analytics/models.py` | Enums, analysis context and reproducibility metadata. |
 | `cryptovision/ui/analytics_view.py`, `ui/analytics_charts.py` | Analytics page components and Plotly figure builders. |
+| `cryptovision/research/config.py` | Experiment configuration (TOML) and per-analysis specifications. |
+| `cryptovision/research/protocol.py` | Protocol and configuration hashing, lock files, integrity checks. |
+| `cryptovision/research/regimes.py` | Strictly past volatility proxies and regime classification. |
+| `cryptovision/research/estimands.py` | Average pairwise correlation and the regime difference Δ. |
+| `cryptovision/research/bootstrap.py` | Stationary block bootstrap that resamples whole days jointly across assets. |
+| `cryptovision/research/experiment.py` | Sample preparation and orchestration of primary, robustness and illustration analyses. |
+| `cryptovision/research/simulation.py` | Synthetic scenarios, pseudo-true values, gate evaluation. |
+| `cryptovision/research/artifacts.py` | Immutable, hash-verified result bundles. |
+| `cryptovision/research/reporting.py`, `report_document.py` | Result serialization, rule-based interpretation, Markdown report. |
+| `cryptovision/research/cli.py` | `cryptovision-research` command-line interface. |
+| `cryptovision/ui/research_view.py`, `ui/research_charts.py` | Research Lab page and figures. |
 
 ## 4. Data flow
 
@@ -176,6 +187,7 @@ All tests run offline. The `responses` library intercepts every `requests` call,
 | `test_charts.py`, `test_components.py` | Figure contents and table display formatting |
 | `test_app.py` | The real app (navigation plus Market Explorer page) via Streamlit's `AppTest`: rendering, request counts across reruns, refresh, errors and recovery |
 | `test_analytics_*.py` | Hand-calculated returns, volatility, drawdown and correlation; alignment and gap policy; references against `statistics` and SciPy; independent checks on the real dataset (skipped when absent); Analytics page via `AppTest` |
+| `test_research_*.py` | Regimes (strictly past information), estimands, bootstrap determinism and joint resampling, configuration and protocol locks, gate rules, artifacts, CLI end-to-end on synthetic data, Research Lab page |
 | `test_data_*.py` | Dataset configs, Binance archive parsing and checksum handling, CoinGecko chart parsing, validation rules and thresholds, Parquet round trips, hashing, atomic writes, interrupted runs, offline rebuilds, cache expiry, CLI commands |
 
 Coverage is measured with branch coverage over `cryptovision`, `app.py` and `views/`. A minimum of 90% is enforced (`fail_under` in `pyproject.toml`).
@@ -214,10 +226,9 @@ Data and research limitations are covered in [limitations.md](limitations.md). A
 
 ## 14. Planned evolution
 
-Phase 3 (historical data pipeline, see [data-methodology.md](data-methodology.md)) and Phase 4 (analytics, see [analytics-methodology.md](analytics-methodology.md)) are implemented. The following phases are **not implemented yet**.
+Phases 3–5 are implemented: the data pipeline ([data-methodology.md](data-methodology.md)), analytics ([analytics-methodology.md](analytics-methodology.md)) and Research Lab ([research-methodology.md](research-methodology.md)). The following phase is **not implemented yet**.
 
-- **Phase 5, Research Lab**: versioned experiment configurations, regime definitions, dependence-aware inference (block bootstrap) and a documented study protocol.
 - **Phase 6, UI and release**:
-  - Extend the existing navigation with a Research Lab page and refine the UI.
+  - Refine the UI, accessibility and visual design across the three pages.
   - An offline demo mode with clearly labelled synthetic data.
   - Final documentation.

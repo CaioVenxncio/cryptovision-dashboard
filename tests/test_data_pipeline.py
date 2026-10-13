@@ -290,7 +290,14 @@ def test_coingecko_cache_expires_after_24_hours(client, mocked_api, tmp_path):
     )
 
     collected = pipeline.collect_coingecko(plan, client)
-    result = pipeline.store_dataset(plan, collected, config_sha256="x" * 64, replace=False, now=NOW)
+    result = pipeline.store_dataset(
+        plan,
+        collected,
+        config_sha256="x" * 64,
+        replace=False,
+        now=NOW,
+        allow_unencrypted_coingecko_cache=True,
+    )
 
     manifest = result.manifest
     assert manifest.retention == "ephemeral"
