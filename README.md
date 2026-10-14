@@ -246,13 +246,13 @@ This history scan reports one known finding: an old CoinMarketCap API key in com
 Dependency ranges live in `pyproject.toml`. Exact pins are generated with [pip-tools](https://pip-tools.readthedocs.io); shared options are set in the `[tool.pip-tools]` section.
 
 ```powershell
-pip-compile -o requirements.txt pyproject.toml
+pip-compile -o requirements.txt requirements.in   # runtime lock, includes the project itself (-e .)
 pip-compile --extra dev -o requirements-dev.txt pyproject.toml
 pip-sync requirements-dev.txt
 pip install -e . --no-deps
 ```
 
-Lock files are generated on Windows with Python 3.13. CI checks that they match `pyproject.toml`.
+Lock files are generated on Windows with Python 3.13. CI checks that they match `pyproject.toml`. `requirements.txt` installs the project itself in editable mode, so `pip install -r requirements.txt` alone is enough to run the app (this is what Streamlit Community Cloud does).
 
 ### Continuous integration
 

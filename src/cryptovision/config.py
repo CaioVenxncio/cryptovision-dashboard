@@ -16,6 +16,9 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, f
 
 DEFAULT_COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# Synthetic demo data (git-ignored), built by `cryptovision-demo` or by the app on
+# first start in demo mode. Demo mode uses it unless the directories are set explicitly.
+DEMO_ROOT = PROJECT_ROOT / ".demo"
 
 
 class ConfigurationError(Exception):
@@ -85,7 +88,7 @@ def settings_from_mapping(env: Mapping[str, str]) -> Settings:
     """
     values = {field: env[name] for name, field in _ENV_TO_FIELD.items() if name in env}
     try:
-        return Settings(**values)
+        settings = Settings(**values)
     except ValidationError as exc:
         field_to_env = {field: name for name, field in _ENV_TO_FIELD.items()}
         problems = [
@@ -93,6 +96,12 @@ def settings_from_mapping(env: Mapping[str, str]) -> Settings:
             for error in exc.errors(include_input=False)
         ]
         raise ConfigurationError("Invalid configuration. " + "; ".join(problems)) from None
+    if settings.demo_mode:
+        demo_dirs = {"data_dir": DEMO_ROOT / "data", "results_dir": DEMO_ROOT / "results"}
+        settings = settings.model_copy(
+            update={field: path for field, path in demo_dirs.items() if field not in values}
+        )
+    return settings
 
 
 def load_settings(dotenv_path: Path | None = None) -> Settings:

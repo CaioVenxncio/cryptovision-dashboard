@@ -1,0 +1,6 @@
+# Runtime lock input. Installing this project itself (editable, from the src/
+# layout) is part of the lock, so hosts that only run
+# `pip install -r requirements.txt` (such as Streamlit Community Cloud) can
+# import `cryptovision`. Dependencies come from pyproject.toml.
+# Regenerate with: pip-compile -o requirements.txt requirements.in
+-e .

@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+from cryptovision import config
 from cryptovision.demo import (
     DEMO_ASSETS,
     DEMO_PROVIDER,
@@ -14,6 +15,7 @@ from cryptovision.demo import (
     demo_market_snapshot,
     main,
     prepare_demo,
+    uses_default_demo_data,
 )
 from cryptovision.research import artifacts
 from cryptovision.research.exceptions import ArtifactError
@@ -34,10 +36,9 @@ def test_demo_snapshot_is_deterministic_and_labelled():
     assert first.fetched_at == NOW.replace(second=0)
 
 
-@pytest.fixture(scope="module")
-def demo(tmp_path_factory):
-    """Build the demo once (synthetic dataset + demo research bundle, ~20 s)."""
-    return prepare_demo(tmp_path_factory.mktemp("demo"), progress=lambda _: None)
+@pytest.fixture
+def demo(prepared_demo):
+    return prepared_demo
 
 
 def test_prepare_demo_builds_labelled_synthetic_artifacts(demo, mocked_api):
@@ -84,3 +85,23 @@ def test_bundle_cannot_reference_files_outside_results_dir(tmp_path):
     )
     with pytest.raises(ArtifactError, match="outside the results directory"):
         load_bundle(bundle, results_dir)
+
+
+def test_demo_mode_defaults_to_demo_directories(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "DEMO_ROOT", tmp_path / ".demo")
+    settings = config.settings_from_mapping({"CRYPTOVISION_DEMO": "1"})
+    assert (settings.data_dir, settings.results_dir) == (
+        tmp_path / ".demo" / "data",
+        tmp_path / ".demo" / "results",
+    )
+    assert uses_default_demo_data(settings)
+
+    explicit = config.settings_from_mapping(
+        {"CRYPTOVISION_DEMO": "1", "CRYPTOVISION_DATA_DIR": str(tmp_path / "d")}
+    )
+    assert explicit.data_dir == tmp_path / "d"
+    assert not uses_default_demo_data(explicit)
+
+    real = config.settings_from_mapping({})
+    assert real.data_dir == config.PROJECT_ROOT / "data"  # real mode unchanged
+    assert not uses_default_demo_data(real)

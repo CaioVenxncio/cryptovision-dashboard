@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -8,6 +9,8 @@ import pytest
 import responses
 from pydantic import SecretStr
 
+from cryptovision import config
+from cryptovision.demo import prepare_demo
 from cryptovision.providers.coingecko import CoinGeckoClient
 from cryptovision.providers.http_client import RetryPolicy
 
@@ -64,3 +67,11 @@ def isolate_environment(monkeypatch):
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("COINGECKO_API_KEY", "")
+    # Demo mode must never build its data inside the repository during tests.
+    monkeypatch.setattr(config, "DEMO_ROOT", Path(tempfile.gettempdir()) / "cv-unused-demo-root")
+
+
+@pytest.fixture(scope="session")
+def prepared_demo(tmp_path_factory):
+    """Demo data built once per test session (synthetic dataset + bundle, ~20 s)."""
+    return prepare_demo(tmp_path_factory.mktemp("demo"), progress=lambda _: None)

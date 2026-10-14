@@ -8,6 +8,7 @@ import pytest
 import streamlit as st
 from streamlit.testing.v1 import AppTest
 
+from cryptovision import config
 from cryptovision.ui import market_data
 from tests.conftest import BASE_URL, FAKE_KEY, load_fixture
 
@@ -175,7 +176,8 @@ def test_invalid_records_are_reported(configured, mocked_api):
     assert any("1 record(s)" in warning.value for warning in at.warning)
 
 
-def test_demo_mode_needs_no_key_and_makes_no_requests(monkeypatch, mocked_api):
+def test_demo_mode_needs_no_key_and_makes_no_requests(monkeypatch, mocked_api, prepared_demo):
+    monkeypatch.setattr(config, "DEMO_ROOT", prepared_demo.root)
     monkeypatch.setenv("CRYPTOVISION_DEMO", "1")
 
     at = run_app()
@@ -186,3 +188,47 @@ def test_demo_mode_needs_no_key_and_makes_no_requests(monkeypatch, mocked_api):
     assert "synthetic demo snapshot" in all_text(at)
     assert not any(b.label == "Refresh data" for b in at.button)  # nothing to refresh
     assert len(mocked_api.calls) == 0
+
+
+def test_demo_mode_from_environment_only_serves_all_pages(monkeypatch, mocked_api, prepared_demo):
+    # As on a hosted app: only CRYPTOVISION_DEMO is set (e.g. via Streamlit secrets).
+    monkeypatch.setattr(config, "DEMO_ROOT", prepared_demo.root)
+    monkeypatch.setenv("CRYPTOVISION_DEMO", "1")
+
+    at = run_app()
+    assert not at.exception, at.exception
+    for page, expected in (
+        ("views/historical_analytics.py", "deterministic synthetic random walk"),
+        ("views/research_lab.py", "it is not the empirical study"),
+    ):
+        at.switch_page(page).run()
+        assert not at.exception, at.exception
+        assert not at.info, [i.value for i in at.info]  # no "no data found" message
+        assert any(expected in w.value for w in at.warning)
+    assert any("descriptive only" in e.value for e in at.error)  # gate notice kept
+    assert len(mocked_api.calls) == 0
+
+
+def test_demo_data_is_prepared_on_first_start(monkeypatch, mocked_api, tmp_path):
+    calls = []
+    monkeypatch.setattr(config, "DEMO_ROOT", tmp_path / ".demo")
+    monkeypatch.setattr("cryptovision.demo.prepare_demo", lambda root, **_: calls.append(root))
+    monkeypatch.setenv("CRYPTOVISION_DEMO", "1")
+    st.cache_resource.clear()
+
+    assert not run_app().exception
+    assert calls == [tmp_path / ".demo"]
+
+
+def test_demo_data_failure_is_reported(monkeypatch, mocked_api, tmp_path):
+    def fail(root, **_):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(config, "DEMO_ROOT", tmp_path / ".demo")
+    monkeypatch.setattr("cryptovision.demo.prepare_demo", fail)
+    monkeypatch.setenv("CRYPTOVISION_DEMO", "1")
+    st.cache_resource.clear()
+
+    at = run_app()
+    assert not at.exception
+    assert any("could not be prepared: disk full" in e.value for e in at.error)

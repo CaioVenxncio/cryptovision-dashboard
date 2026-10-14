@@ -97,7 +97,7 @@ jobs:
 
       - name: Re-compile lock files
         run: |
-          pip-compile --quiet -o requirements.txt pyproject.toml
+          pip-compile --quiet -o requirements.txt requirements.in
           pip-compile --quiet --extra dev -o requirements-dev.txt pyproject.toml
 
       - name: Fail if lock files changed

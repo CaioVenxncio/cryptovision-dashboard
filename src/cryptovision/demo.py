@@ -19,12 +19,13 @@ from pathlib import Path
 
 import numpy as np
 
+from cryptovision import config
 from cryptovision.data import pipeline
 from cryptovision.data.synthetic import generate_synthetic_ohlcv, synthetic_config
 from cryptovision.models import MarketCoin, MarketSnapshot
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DEMO_ROOT = PROJECT_ROOT / ".demo"
+DEFAULT_DEMO_ROOT = config.DEMO_ROOT
 DEMO_PROVIDER = "Synthetic demo"
 DEMO_SEED = 42
 DEMO_START = date(2023, 1, 1)
@@ -218,6 +219,14 @@ def prepare_demo(root: Path = DEFAULT_DEMO_ROOT, progress=print) -> DemoPaths:
         if research_main([*common, "run", str(config_path)]) != 0:
             raise RuntimeError("Demo experiment failed.")
     return DemoPaths(root=root, data_dir=data_dir, results_dir=results_dir, config=config_path)
+
+
+def uses_default_demo_data(settings: config.Settings) -> bool:
+    """True when the settings point at the default demo directories (see config.DEMO_ROOT)."""
+    return settings.demo_mode and (settings.data_dir, settings.results_dir) == (
+        config.DEMO_ROOT / "data",
+        config.DEMO_ROOT / "results",
+    )
 
 
 def demo_environment(paths: DemoPaths) -> dict[str, str]:
