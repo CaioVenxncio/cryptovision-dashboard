@@ -9,19 +9,7 @@ import plotly.graph_objects as go
 from cryptovision.analytics.correlation import CorrelationResult
 from cryptovision.analytics.drawdown import drawdown_series
 from cryptovision.analytics.volatility import RollingResult
-from cryptovision.ui.theme import CHART_HEIGHT, NEGATIVE_COLOR
-
-SERIES_COLORS = (
-    "#6200EE",
-    "#1F77B4",
-    "#FF7F0E",
-    "#2CA02C",
-    "#D62728",
-    "#9467BD",
-    "#8C564B",
-    "#E377C2",
-    "#17BECF",
-)
+from cryptovision.ui.theme import CHART_HEIGHT, DIVERGING_SCALE, SERIES_COLORS, TOKENS
 
 
 def _layout(figure: go.Figure, *, yaxis_title: str, **extra: object) -> go.Figure:
@@ -30,8 +18,6 @@ def _layout(figure: go.Figure, *, yaxis_title: str, **extra: object) -> go.Figur
         xaxis_title=None,
         yaxis_title=yaxis_title,
         hovermode="x unified",
-        legend={"orientation": "h", "y": -0.15},
-        margin={"t": 30},
         **extra,
     )
     return figure
@@ -57,7 +43,10 @@ def price_chart(prices: pd.DataFrame, *, quote_currency: str) -> go.Figure:
     for index, asset in enumerate(prices.columns):
         _line(figure, prices[asset], asset, index, ",.4~f")
     return _layout(
-        figure, yaxis_title=f"Close price ({quote_currency}, log scale)", yaxis_type="log"
+        figure,
+        yaxis_title=f"Close price ({quote_currency}, log scale)",
+        yaxis_type="log",
+        yaxis_dtick="D2",
     )
 
 
@@ -80,7 +69,7 @@ def drawdown_chart(prices: pd.DataFrame) -> go.Figure:
         if prices[asset].notna().sum() < 1:
             continue
         _line(figure, drawdown_series(prices[asset]), asset, index, ".1%")
-    figure.add_hline(y=0, line_width=1, line_color="#888888")
+    figure.add_hline(y=0, line_width=1, line_color=TOKENS.text_muted)
     return _layout(figure, yaxis_title="Drawdown from running peak", yaxis_tickformat=".0%")
 
 
@@ -97,16 +86,16 @@ def correlation_heatmap(result: CorrelationResult) -> go.Figure:
             y=labels,
             zmin=-1,
             zmax=1,
-            colorscale="RdBu",
-            reversescale=True,
+            colorscale=[list(stop) for stop in DIVERGING_SCALE],
             text=text,
             texttemplate="%{text}",
+            textfont={"color": TOKENS.text},
             customdata=result.counts.to_numpy(),
             hovertemplate="%{y} / %{x}<br>r = %{text}<br>n = %{customdata}<extra></extra>",
             colorbar={"title": "r"},
         )
     )
-    figure.update_layout(height=max(CHART_HEIGHT, 60 * len(labels)), margin={"t": 30})
+    figure.update_layout(height=max(300, 64 * len(labels) + 120))
     figure.update_yaxes(autorange="reversed")
     return figure
 
@@ -115,9 +104,10 @@ def rolling_correlation_chart(result: RollingResult) -> go.Figure:
     figure = go.Figure()
     column = result.values.columns[0]
     _line(figure, result.values[column], column.replace("|", " / "), 0, ".2f")
-    figure.add_hline(y=0, line_width=1, line_color=NEGATIVE_COLOR, line_dash="dot")
+    figure.add_hline(y=0, line_width=1, line_color=TOKENS.text_muted, line_dash="dot")
+    method = str(result.metadata.method).capitalize()
     return _layout(
         figure,
-        yaxis_title=f"{result.metadata.method} correlation ({result.metadata.window}-day window)",
+        yaxis_title=f"{method} correlation ({result.metadata.window}-day window)",
         yaxis_range=[-1, 1],
     )

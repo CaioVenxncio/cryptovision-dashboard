@@ -203,3 +203,27 @@ def test_unpublished_month_is_reported_as_missing(source, mocked_api):
 
     with pytest.raises(MissingSourceFileError, match="not published"):
         source.fetch_archive("BTCUSDT", "2024-01", offline=False)
+
+
+def test_oversized_archives_and_members_are_rejected(monkeypatch):
+    from cryptovision.data.sources import binance
+
+    data = kline_zip(kline_rows(date(2024, 1, 1), 2), name=f"{NAME}.csv")
+    monkeypatch.setattr(binance, "MAX_UNCOMPRESSED_BYTES", 10)
+    with pytest.raises(SourceFormatError, match="expands to"):
+        parse(data)
+    monkeypatch.setattr(binance, "MAX_ARCHIVE_BYTES", 10)
+    with pytest.raises(SourceFormatError, match="larger than"):
+        parse(data)
+
+
+def test_download_size_limit(mocked_api):
+    from cryptovision.providers.errors import ResponseSchemaError
+
+    http = HttpJsonClient(
+        BASE_URL, headers={}, timeout_seconds=5, retry_policy=RetryPolicy(max_retries=0)
+    )
+    mocked_api.get(f"{BASE_URL}/big", body=b"x" * 100)
+    with pytest.raises(ResponseSchemaError, match="exceeds 50 bytes"):
+        http.get_bytes("big", max_bytes=50)
+    assert http.get_bytes("big", max_bytes=1000) == b"x" * 100

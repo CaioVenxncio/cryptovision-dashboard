@@ -1,0 +1,40 @@
+# CryptoVision Design System v1.0 - Streamlit theme.
+# Values mirror src/cryptovision/ui/theme.py (Tokens); tests keep them in sync.
+
+[theme]
+base = "dark"
+primaryColor = "#60A5FA"
+backgroundColor = "#09090B"
+secondaryBackgroundColor = "#111113"
+textColor = "#FAFAFA"
+linkColor = "#60A5FA"
+borderColor = "#27272A"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "6px"
+buttonRadius = "6px"
+font = "Geist, Inter, 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif"
+headingFont = "Geist, Inter, 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif"
+codeFont = "'Geist Mono', 'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace"
+baseFontSize = 14
+headingFontSizes = ["1.875rem", "1.125rem", "1rem", "0.9375rem"]
+headingFontWeights = [600, 600, 600, 600]
+codeFontSize = "0.8125rem"
+metricValueFontSize = "1.625rem"
+metricValueFontWeight = 600
+dataframeHeaderBackgroundColor = "#111113"
+redColor = "#F87171"
+greenColor = "#34D399"
+yellowColor = "#FBBF24"
+blueColor = "#60A5FA"
+chartCategoricalColors = ["#56B4E9", "#E69F00", "#2CB58E", "#F0E442", "#CC79A7", "#E8743B", "#7FA7E0", "#B8B8C0", "#FAFAFA"]
+
+[theme.sidebar]
+backgroundColor = "#0C0C0E"
+secondaryBackgroundColor = "#111113"
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false

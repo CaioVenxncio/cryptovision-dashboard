@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using these metadata."
+title: "CryptoVision: a reproducible cryptocurrency market analytics and research platform"
+type: software
+authors:
+  - family-names: Venancio
+    given-names: Caio
+version: 1.0.0rc1
+license: MIT
+repository-code: "https://github.com/CaioVenxncio/cryptovision-dashboard"
+abstract: >-
+  An educational Python and Streamlit application for exploring cryptocurrency
+  market data, building hash-verified historical datasets, computing descriptive
+  analytics, and running a locally pre-specified study of return correlations in
+  high- and low-volatility regimes. The study's validation gate failed, so its
+  results are descriptive only. Not investment advice.
+keywords:
+  - cryptocurrency
+  - reproducibility
+  - volatility
+  - correlation
+  - streamlit

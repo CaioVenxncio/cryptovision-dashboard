@@ -1,6 +1,6 @@
 # CryptoVision Architecture
 
-This document describes the architecture as currently implemented. Planned work is listed separately in [Planned evolution](#14-planned-evolution) and is not yet part of the code.
+This document describes the architecture as currently implemented (release candidate 1.0.0rc1). Work that is not implemented is listed in [Planned evolution](#14-planned-evolution).
 
 ## 1. Purpose
 
@@ -9,7 +9,9 @@ CryptoVision is an educational and research-oriented cryptocurrency market analy
 - a **Market Explorer** backed by the CoinGecko Demo API;
 - a **historical data pipeline** that builds validated, hash-verified Parquet datasets with provenance manifests;
 - a **quantitative analytics engine** (returns, volatility, drawdown, correlation) and a Historical Analytics page that works offline on validated datasets;
-- a **Research Lab**: a frozen-protocol experiment engine (`cryptovision.research`) with simulation-based method validation, immutable result bundles, a CLI and a read-only dashboard page.
+- a **Research Lab**: a frozen-protocol experiment engine (`cryptovision.research`) with simulation-based method validation, immutable result bundles, a CLI and a read-only dashboard page;
+- an **offline demo** (`cryptovision-demo`) that runs all three pages on clearly labelled synthetic data, without an API key or network access;
+- a small **design system** (`ui/theme.py`, `ui/design.py`, `.streamlit/config.toml`), described in [design-system.md](design-system.md).
 
 The project deliberately stays a single Python package with a Streamlit front end. There is no separate backend service, database or frontend framework.
 
@@ -31,6 +33,7 @@ flowchart LR
             COMP[components.py]
             CH[charts.py]
             TH[theme.py]
+            DS[design.py]
         end
     end
 
@@ -48,6 +51,8 @@ flowchart LR
     COMP --> FMT
     CH --> FMT
     COMP --> TH
+    COMP --> DS
+    DS --> TH
     CH --> TH
 ```
 
@@ -57,7 +62,7 @@ Dependencies point one way: `app.py` → `views` → `ui` → domain modules (`m
 
 | Module | Responsibility |
 |---|---|
-| `app.py` | Streamlit entry point: page configuration and `st.navigation` between the two pages. |
+| `app.py` | Streamlit entry point: page configuration, logo, global styles, sidebar identity and `st.navigation` between the three pages. |
 | `views/market_explorer.py` | Market Explorer page: loads settings, calls the data loader and lays out components. |
 | `views/historical_analytics.py` | Historical Analytics page; delegates to `ui/analytics_view.py`. |
 | `views/research_lab.py` | Research Lab page; delegates to `ui/research_view.py` (loads verified bundles only). |
@@ -71,7 +76,11 @@ Dependencies point one way: `app.py` → `views` → `ui` → domain modules (`m
 | `cryptovision/ui/market_data.py` | Streamlit caching, cache expiry and the per-session failure cooldown. |
 | `cryptovision/ui/components.py` | Reusable Streamlit components: sidebar, metrics, table, export, error states and footer. |
 | `cryptovision/ui/charts.py` | Pure Plotly figure builders. |
-| `cryptovision/ui/theme.py` | Colors and shared visual constants. |
+| `cryptovision/ui/theme.py` | Design tokens (colors, type, spacing), the chart palettes, the WCAG contrast helper, the Plotly template and the single global CSS block. |
+| `cryptovision/ui/design.py` | Page-level components: page header, section heading, accessible chart wrapper (text summary and data table), sidebar identity and demo notice. All dynamic text is HTML-escaped. |
+| `cryptovision/demo.py` | `cryptovision-demo`: builds a synthetic dataset and a demo research bundle under `.demo/`, then starts Streamlit in demo mode. Also provides the synthetic Market Explorer snapshot. |
+| `.streamlit/config.toml` | Streamlit theme matching the design tokens; minimal toolbar; usage statistics disabled. |
+| `assets/` | The CryptoVision mark and logo (SVG), used by `st.logo`. |
 | `cryptovision/data/config.py` | Dataset TOML configuration, validated with Pydantic. |
 | `cryptovision/data/schemas.py` | Arrow schemas for the `ohlcv` and `price_series` dataset kinds. |
 | `cryptovision/data/sources/` | Binance Vision archive download, checksum verification and parsing; CoinGecko chart normalization. |
@@ -106,7 +115,7 @@ Dependencies point one way: `app.py` → `views` → `ui` → domain modules (`m
 
 1. The Market Explorer page (`views/market_explorer.py`) calls `load_settings()`. An invalid value stops the app with a message naming the variable, never its value.
 2. `load_market_snapshot()` returns the cached snapshot, or calls `CoinGeckoClient.get_markets()` once if the cache is empty or expired.
-3. The client sends `GET /coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false`. One request covers every slider position (5–50 assets).
+3. The client sends `GET /coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false`. One request covers every asset-count option (10, 25 or 50 assets).
 4. Each record is validated into a `MarketCoin`. Invalid records are dropped and counted. The batch becomes a `MarketSnapshot` with `fetched_at` in UTC.
 5. `snapshot_to_frame()` produces a DataFrame with float64 numeric columns, nullable `Int64` rank and UTC timestamps, sorted by rank.
 6. `select_top()` takes the first N rows. `summarize_selection()` computes the selected-asset totals.
@@ -122,6 +131,9 @@ Dependencies point one way: `app.py` → `views` → `ui` → domain modules (`m
 | `CACHE_TTL_SECONDS` | `900` | 60–86400 |
 | `HTTP_TIMEOUT_SECONDS` | `10` | greater than 0, up to 60 |
 | `HTTP_MAX_RETRIES` | `3` | 0–5 |
+| `CRYPTOVISION_DATA_DIR` | `data` | Directory of local datasets |
+| `CRYPTOVISION_RESULTS_DIR` | `research/results` | Directory of research result bundles |
+| `CRYPTOVISION_DEMO` | off | `1` enables demo mode: synthetic market snapshot, no CoinGecko requests |
 
 - `.env` is loaded with `override=False`, so real environment variables take precedence.
 - The key is sent only in the `x-cg-demo-api-key` header. It never appears in URLs, cache keys, `repr()` output, logs or error messages.
@@ -185,6 +197,8 @@ All tests run offline. The `responses` library intercepts every `requests` call,
 | `test_formatting.py` | Currency, percentage and timestamp edge cases |
 | `test_market_data.py` | Cache reuse, expiry, cooldown and recovery |
 | `test_charts.py`, `test_components.py` | Figure contents and table display formatting |
+| `test_design_system.py` | WCAG contrast of every text token on every background, chart colors against the canvas, Streamlit theme in sync with the tokens, Plotly template, HTML escaping in components |
+| `test_demo.py` | Demo determinism, synthetic labelling, idempotent preparation, no network calls, bundle path confinement |
 | `test_app.py` | The real app (navigation plus Market Explorer page) via Streamlit's `AppTest`: rendering, request counts across reruns, refresh, errors and recovery |
 | `test_analytics_*.py` | Hand-calculated returns, volatility, drawdown and correlation; alignment and gap policy; references against `statistics` and SciPy; independent checks on the real dataset (skipped when absent); Analytics page via `AppTest` |
 | `test_research_*.py` | Regimes (strictly past information), estimands, bootstrap determinism and joint resampling, configuration and protocol locks, gate rules, artifacts, CLI end-to-end on synthetic data, Research Lab page |
@@ -197,7 +211,9 @@ Coverage is measured with branch coverage over `cryptovision`, `app.py` and `vie
 `.github/workflows/ci.yml` runs on pushes to `main`, on pull requests and on manual dispatch.
 
 - **`test` job**: Ubuntu and Windows × Python 3.12 and 3.13. Each job installs the pinned lock file, runs `pip check`, Ruff lint and format checks, and pytest with coverage. The `coverage.xml` report is uploaded as an artifact.
+- **`dependency-audit` job**: runs `pip-audit` on the pinned development lock file (Ubuntu, Python 3.12).
 - **`lock-files` job**: re-runs `pip-compile` on Windows with Python 3.13, the platform where the locks are generated, and fails if the committed lock files are out of date.
+- Third-party actions are pinned to full commit SHAs (with the version in a comment).
 - The token is read-only (`contents: read`) and checkout does not persist credentials.
 - No secrets are configured: `COINGECKO_API_KEY` is explicitly empty and every HTTP call is mocked.
 
@@ -210,7 +226,11 @@ Coverage is measured with branch coverage over `cryptovision`, `app.py` and `vie
   - Ruff lints and formats the code.
   - actionlint checks the workflow files.
   - Standard hooks detect private keys and large files.
-- **Known historical exposure:** commit `ca9f2df` contains a CoinMarketCap API key in `api.py`. Gitleaks reports it when scanning the full history. The code no longer uses it. History is intentionally not rewritten, so revoking the key is an action only the repository owner can take.
+- **Download limits:** Binance archives are capped at 20 MB compressed and 50 MB uncompressed (checked before extraction), and checksum files at 4 KB.
+- **Result bundles:** the Research Lab only loads hash-verified bundles and rejects references that point outside the results directory.
+- **Dependency audit:** `pip-audit` checks the pinned dependencies locally and in CI.
+- See [security.md](security.md) for the full security notes.
+- **Known historical exposure:** commit `ca9f2df` contains a CoinMarketCap API key in `api.py`. Gitleaks reports it when scanning the full history. The code no longer uses it. The owner has revoked the key and it is invalid; it remains visible because history is intentionally not rewritten.
 
 ## 13. Known limitations
 
@@ -226,9 +246,8 @@ Data and research limitations are covered in [limitations.md](limitations.md). A
 
 ## 14. Planned evolution
 
-Phases 3–5 are implemented: the data pipeline ([data-methodology.md](data-methodology.md)), analytics ([analytics-methodology.md](analytics-methodology.md)) and Research Lab ([research-methodology.md](research-methodology.md)). The following phase is **not implemented yet**.
+Phases 1–6 are implemented: the data pipeline ([data-methodology.md](data-methodology.md)), analytics ([analytics-methodology.md](analytics-methodology.md)), Research Lab ([research-methodology.md](research-methodology.md)), and the UI, demo and release preparation ([design-system.md](design-system.md)). Nothing is deployed. Possible future work, **not implemented**:
 
-- **Phase 6, UI and release**:
-  - Refine the UI, accessibility and visual design across the three pages.
-  - An offline demo mode with clearly labelled synthetic data.
-  - Final documentation.
+- A new, separately pre-registered version of the research protocol with a method that passes its validation gate. The v1 protocol and its results are not modified.
+- Encrypted, time-limited storage that would allow CoinGecko history to be cached in line with its terms.
+- A hosted deployment, which would first need the review in [deployment.md](deployment.md).

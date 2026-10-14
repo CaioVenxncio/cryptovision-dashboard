@@ -104,8 +104,22 @@ class HttpJsonClient:
         except ValueError:
             raise ResponseSchemaError(f"Response from {path} is not valid JSON.") from None
 
-    def get_bytes(self, path: str, params: Mapping[str, str] | None = None) -> bytes:
-        return self._get(path, params).content
+    def get_bytes(
+        self,
+        path: str,
+        params: Mapping[str, str] | None = None,
+        *,
+        max_bytes: int | None = None,
+    ) -> bytes:
+        """Raw response body. With `max_bytes`, larger responses are rejected."""
+        response = self._get(path, params)
+        if max_bytes is not None:
+            declared = response.headers.get("Content-Length")
+            if declared is not None and declared.isdigit() and int(declared) > max_bytes:
+                raise ResponseSchemaError(f"Response from {path} exceeds {max_bytes} bytes.")
+            if len(response.content) > max_bytes:
+                raise ResponseSchemaError(f"Response from {path} exceeds {max_bytes} bytes.")
+        return response.content
 
     def _get(self, path: str, params: Mapping[str, str] | None) -> requests.Response:
         url = f"{self._base_url}/{path.lstrip('/')}"

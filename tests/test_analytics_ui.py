@@ -41,6 +41,10 @@ def store(data_dir: Path, *, anomalies: bool = False, days: int = 120) -> pipeli
     return pipeline.store_dataset(plan, collected, config_sha256="0" * 64, replace=False)
 
 
+def markdown(at: AppTest) -> str:
+    return "\n".join(m.value for m in at.markdown)
+
+
 def open_analytics(monkeypatch, data_dir: Path) -> AppTest:
     monkeypatch.setenv("CRYPTOVISION_DATA_DIR", str(data_dir))
     at = AppTest.from_file(APP_PATH, default_timeout=60).run()
@@ -66,15 +70,13 @@ def test_analytics_page_renders_offline(monkeypatch, tmp_path, mocked_api):
 
     assert not at.exception, at.exception
     assert not at.error
-    assert any("Synthetic data" in w.value for w in at.warning)
-    assert [s.value for s in at.subheader] == [
-        "Summary",
-        "Close price (SYNTH)",
-        "Rolling volatility",
-        "Drawdown",
-        "Correlation of daily returns",
-    ]
-    assert len(at.dataframe) == 1
+    assert any("synthetic data" in w.value for w in at.warning)
+    text = markdown(at)
+    for section in ("Historical Analytics", "<h2>Summary</h2>", "<h2>Charts</h2>"):
+        assert section in text
+    assert "Quote <b>SYNTH</b>" in text  # provenance row
+    assert [t.label for t in at.tabs] == ["Price", "Volatility", "Drawdown", "Correlation"]
+    assert at.dataframe[0].proto.alt  # summary table carries a text alternative
     assert len(mocked_api.calls) == 0  # no network
 
 
@@ -82,22 +84,20 @@ def test_controls_update_results(monkeypatch, tmp_path, mocked_api):
     store(tmp_path)
     at = open_analytics(monkeypatch, tmp_path)
 
-    at.sidebar.radio[0].set_value(ReturnType.SIMPLE).run()
-    at.sidebar.radio[1].set_value(CorrelationMethod.SPEARMAN).run()
-    at.sidebar.selectbox[1].set_value(7).run()
-    at.sidebar.slider[0].set_value((date(2024, 1, 15), date(2024, 3, 31))).run()
+    at.radio[0].set_value(ReturnType.SIMPLE).run()
+    at.radio[3].set_value(CorrelationMethod.SPEARMAN).run()
+    at.radio[1].set_value(7).run()
+    at.slider[0].set_value((date(2024, 1, 15), date(2024, 3, 31))).run()
 
     assert not at.exception, at.exception
-    assert any(
-        "2024-01-15 to 2024-03-31" in c.value and "simple returns" in c.value for c in at.caption
-    )
+    assert "2024-01-15 to 2024-03-31 · simple returns" in markdown(at)
     assert any("Spearman correlation" in c.value for c in at.caption)
 
 
 def test_single_asset_skips_correlation(monkeypatch, tmp_path, mocked_api):
     store(tmp_path)
     at = open_analytics(monkeypatch, tmp_path)
-    at.sidebar.multiselect[0].set_value(["synthetic-a"]).run()
+    at.multiselect[0].set_value(["synthetic-a"]).run()
 
     assert not at.exception
     assert any("at least two assets" in i.value for i in at.info)
@@ -106,14 +106,14 @@ def test_single_asset_skips_correlation(monkeypatch, tmp_path, mocked_api):
 def test_no_asset_selected(monkeypatch, tmp_path, mocked_api):
     store(tmp_path)
     at = open_analytics(monkeypatch, tmp_path)
-    at.sidebar.multiselect[0].set_value([]).run()
+    at.multiselect[0].set_value([]).run()
     assert any("Select at least one asset" in i.value for i in at.info)
 
 
 def test_too_short_period_is_reported_not_crashing(monkeypatch, tmp_path, mocked_api):
     store(tmp_path)
     at = open_analytics(monkeypatch, tmp_path)
-    at.sidebar.slider[0].set_value((date(2024, 1, 1), date(2024, 1, 1))).run()
+    at.slider[0].set_value((date(2024, 1, 1), date(2024, 1, 1))).run()
     assert not at.exception, at.exception
 
 

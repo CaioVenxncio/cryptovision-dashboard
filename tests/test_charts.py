@@ -5,8 +5,13 @@ import math
 import pandas as pd
 import pytest
 
-from cryptovision.ui.charts import market_cap_chart, price_change_chart
-from cryptovision.ui.theme import NEGATIVE_COLOR, POSITIVE_COLOR
+from cryptovision.ui.charts import (
+    bar_height,
+    direction_symbol,
+    market_cap_chart,
+    price_change_chart,
+)
+from cryptovision.ui.theme import NEGATIVE_COLOR, NEUTRAL_LINE_COLOR, POSITIVE_COLOR
 
 
 @pytest.fixture
@@ -20,38 +25,46 @@ def frame() -> pd.DataFrame:
     )
 
 
-def test_market_cap_chart_bars_and_hover_labels(frame):
+def test_market_cap_chart_horizontal_bars_with_labels(frame):
     figure = market_cap_chart(frame)
 
     (trace,) = figure.data
-    assert list(trace.x) == ["Bitcoin", "Ethereum", "Tether", "Tiny"]
-    assert [row[0] for row in trace.customdata] == ["$1.20T", "$300.00B", "$150.00B", "—"]
-    assert figure.layout.yaxis.type != "log"
-    assert figure.layout.yaxis.title.text == "Market cap (USD)"
+    assert trace.orientation == "h"
+    assert list(trace.y) == ["Bitcoin", "Ethereum", "Tether", "Tiny"]
+    assert list(trace.text) == ["$1.20T", "$300.00B", "$150.00B", "—"]
+    assert figure.layout.yaxis.autorange == "reversed"  # largest at the top
+    assert figure.layout.xaxis.title.text == "Market capitalization (USD)"
+    assert figure.layout.xaxis.range[1] == pytest.approx(1.2e12 * 1.2)  # label headroom
 
 
 def test_market_cap_chart_log_scale(frame):
-    assert market_cap_chart(frame, log_scale=True).layout.yaxis.type == "log"
+    figure = market_cap_chart(frame, log_scale=True)
+    assert figure.layout.xaxis.type == "log"
+    assert figure.layout.xaxis.range is None
 
 
-def test_price_change_chart_sorted_colored_and_drops_missing(frame):
+def test_chart_height_grows_with_assets():
+    assert bar_height(5) == 320
+    assert bar_height(50) == 24 * 50 + 90
+
+
+def test_price_change_chart_sorted_labelled_and_drops_missing(frame):
     figure = price_change_chart(frame)
 
-    by_direction = {trace.name: trace for trace in figure.data}
-    assert list(by_direction["Down"].x) == ["Ethereum"]
-    assert list(by_direction["Up"].x) == ["Tether", "Bitcoin"]
-    assert by_direction["Down"].marker.color == NEGATIVE_COLOR
-    assert by_direction["Up"].marker.color == POSITIVE_COLOR
-    assert list(figure.layout.xaxis.categoryarray) == ["Ethereum", "Tether", "Bitcoin"]
-    assert [row[0] for row in by_direction["Up"].customdata] == ["0.00%", "+2.00%"]
-    assert figure.layout.yaxis.ticksuffix == "%"
+    (trace,) = figure.data
+    assert list(trace.y) == ["Bitcoin", "Tether", "Ethereum"]  # descending, NaN dropped
+    assert list(trace.text) == ["▲ +2.00%", "■ 0.00%", "▼ -1.50%"]
+    assert list(trace.marker.color) == [POSITIVE_COLOR, NEUTRAL_LINE_COLOR, NEGATIVE_COLOR]
+    assert figure.layout.xaxis.ticksuffix == "%"
 
 
-def test_change_that_displays_as_zero_is_not_red():
+def test_change_that_displays_as_zero_is_neutral():
     frame = pd.DataFrame({"name": ["Dai", "Ethereum"], "change_24h_pct": [-0.001, -1.0]})
+    (trace,) = price_change_chart(frame).data
+    assert list(trace.text) == ["■ 0.00%", "▼ -1.00%"]
+    assert list(trace.marker.color) == [NEUTRAL_LINE_COLOR, NEGATIVE_COLOR]
 
-    by_direction = {trace.name: trace for trace in price_change_chart(frame).data}
 
-    assert list(by_direction["Down"].x) == ["Ethereum"]
-    assert list(by_direction["Up"].x) == ["Dai"]
-    assert [row[0] for row in by_direction["Up"].customdata] == ["0.00%"]
+@pytest.mark.parametrize(("value", "symbol"), [(0.5, "▲"), (-0.5, "▼"), (0.004, "■")])
+def test_direction_symbol(value, symbol):
+    assert direction_symbol(value) == symbol

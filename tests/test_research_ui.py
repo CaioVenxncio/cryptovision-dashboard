@@ -13,7 +13,7 @@ from streamlit.testing.v1 import AppTest
 from cryptovision.research import artifacts
 from cryptovision.research.cli import main
 from cryptovision.ui import research_charts
-from cryptovision.ui.research_view import experiment_bundles, load_bundle
+from cryptovision.ui.research_view import FAILED_NOTICE, experiment_bundles, load_bundle
 from tests.test_research_workflow import build_project
 
 APP_PATH = str(Path(__file__).resolve().parents[1] / "app.py")
@@ -61,17 +61,32 @@ def test_research_page_renders_bundle(monkeypatch, results, mocked_api):
     at = open_page(monkeypatch, results)
 
     assert not at.exception, at.exception
-    assert any("Synthetic data" in w.value for w in at.warning)
-    assert [s.value for s in at.subheader] == [
-        "Research question",
-        "Primary result",
+    assert any("synthetic data" in w.value for w in at.warning)
+    # The failed gate is stated next to the result, verbatim.
+    assert any(FAILED_NOTICE in e.value for e in at.error)
+    text = "\n".join(m.value for m in at.markdown)
+    for section in (
+        "Question and design",
+        "Descriptive results",
         "Volatility regimes",
         "Pairwise correlations by regime",
-        "Primary and robustness estimates",
-        "Simulation validation (method gate)",
+        "Robustness checks",
+        "Validation gate",
         "Limitations",
+        "Reproducibility",
+    ):
+        assert f"<h2>{section}</h2>" in text
+    labels = [m.label for m in at.metric]
+    assert labels == [
+        "Observed Δ",
+        "Avg. correlation · high",
+        "Avg. correlation · low",
+        "Days high / low",
     ]
-    assert [m.label for m in at.metric] == ["Δ", "95% interval", "ρ̄ high / low", "Days high / low"]
+    assert not any("interval" in label.lower() for label in labels)  # no CI as a headline
+    # Intervals are hidden by default when the method is not validated.
+    assert at.toggle[0].value is False
+    assert "unvalidated" in at.toggle[0].label
     assert len(mocked_api.calls) == 0  # offline
 
 

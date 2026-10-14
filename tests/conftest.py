@@ -60,6 +60,7 @@ def isolate_environment(monkeypatch):
         "COINGECKO_BASE_URL",
         "CRYPTOVISION_DATA_DIR",
         "CRYPTOVISION_RESULTS_DIR",
+        "CRYPTOVISION_DEMO",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("COINGECKO_API_KEY", "")

@@ -40,6 +40,8 @@ class Settings(BaseModel):
     data_dir: Path = PROJECT_ROOT / "data"
     # Research Lab result bundles (see docs/research-reproducibility.md).
     results_dir: Path = PROJECT_ROOT / "research" / "results"
+    # Offline demo: synthetic data everywhere, no CoinGecko requests.
+    demo_mode: bool = False
 
     @field_validator("coingecko_api_key", mode="before")
     @classmethod
@@ -70,6 +72,7 @@ _ENV_TO_FIELD = {
     "HTTP_MAX_RETRIES": "http_max_retries",
     "CRYPTOVISION_DATA_DIR": "data_dir",
     "CRYPTOVISION_RESULTS_DIR": "results_dir",
+    "CRYPTOVISION_DEMO": "demo_mode",
 }
 
 

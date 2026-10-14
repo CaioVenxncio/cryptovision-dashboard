@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cryptovision"
-version = "0.5.0"
+version = "1.0.0rc1"
 description = "A reproducible cryptocurrency market analytics and research platform."
 readme = "README.md"
 license = "MIT"
@@ -33,9 +33,11 @@ dependencies = [
 [project.scripts]
 cryptovision-data = "cryptovision.data.cli:main"
 cryptovision-research = "cryptovision.research.cli:main"
+cryptovision-demo = "cryptovision.demo:main"
 
 [project.optional-dependencies]
 dev = [
+    "pip-audit>=2.7",
     "pip-tools>=7.4",
     "pre-commit>=4.0",
     "pytest>=8.3",

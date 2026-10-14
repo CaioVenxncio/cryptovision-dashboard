@@ -48,6 +48,11 @@ LICENSE_NOTES = (
     "See https://github.com/binance/binance-public-data/blob/master/TERMS_AND_CONDITIONS.md"
 )
 
+# A monthly daily-kline archive is a few kilobytes; these limits only stop
+# runaway downloads and decompression bombs.
+MAX_ARCHIVE_BYTES = 20 * 1024 * 1024
+MAX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
+
 _MIN_COLUMNS = 11
 _MICROSECONDS_THRESHOLD = 10**15
 _MILLISECONDS_THRESHOLD = 10**12
@@ -102,11 +107,19 @@ def parse_kline_archive(
     data: bytes, *, asset: AssetSpec, quote_currency: str, frequency: str = "1d"
 ) -> pd.DataFrame:
     """Parse one kline zip archive into normalized OHLCV rows."""
+    if len(data) > MAX_ARCHIVE_BYTES:
+        raise SourceFormatError(f"Archive is larger than {MAX_ARCHIVE_BYTES} bytes.")
     try:
         archive = zipfile.ZipFile(io.BytesIO(data))
-        members = [name for name in archive.namelist() if name.lower().endswith(".csv")]
+        members = [info for info in archive.infolist() if info.filename.lower().endswith(".csv")]
         if len(members) != 1:
             raise SourceFormatError(f"Expected one CSV in the archive, found {len(members)}.")
+        # Guard against decompression bombs before extracting anything.
+        if members[0].file_size > MAX_UNCOMPRESSED_BYTES:
+            raise SourceFormatError(
+                f"Archive member expands to {members[0].file_size} bytes "
+                f"(limit {MAX_UNCOMPRESSED_BYTES})."
+            )
         text = archive.read(members[0]).decode("utf-8")
     except (zipfile.BadZipFile, EOFError, UnicodeDecodeError) as exc:
         raise SourceFormatError(f"Corrupt or incomplete archive ({exc}).") from None
@@ -197,9 +210,9 @@ class BinanceVisionSource:
             raise MissingSourceFileError(f"{filename} is not available locally (offline mode).")
 
         try:
-            data = self._http.get_bytes(relative)
+            data = self._http.get_bytes(relative, max_bytes=MAX_ARCHIVE_BYTES)
             self._sleep(self._interval)
-            checksum_bytes = self._http.get_bytes(f"{relative}.CHECKSUM")
+            checksum_bytes = self._http.get_bytes(f"{relative}.CHECKSUM", max_bytes=4096)
             self._sleep(self._interval)
         except ProviderRequestError as exc:
             if exc.status_code == 404:

@@ -49,32 +49,35 @@ def test_renders_market_data(configured, mocked_api):
     assert not at.error
     labels = [metric.label for metric in at.metric]
     assert labels == [
-        "Selected Assets Market Cap",
-        "Selected Assets 24h Volume",
-        "Selected Assets Market Cap Change (24h)",
+        "Market cap · selected",
+        "24h volume · selected",
+        "Market cap change · 24h",
+        "Assets shown",
     ]
-    assert [metric.value for metric in at.metric] == ["$1.50T", "$45.00B", "+1.01%"]
+    assert not any("Total" in label for label in labels)  # selected assets, not the market
+    assert [metric.value for metric in at.metric] == ["$1.50T", "$45.00B", "▲ +1.01%", "3"]
     assert len(at.dataframe) == 1
-    assert [s.value for s in at.subheader][:1] == ["Top 3 Assets by Market Cap"]
     text = all_text(at)
-    assert "Provider data last updated:** 2026-10-13 12:01:00 UTC" in text
-    assert "Retrieved just now" in text
+    assert "Top 3 assets" in text
+    assert "Provider update <b>2026-10-13 12:01:00 UTC</b>" in text
+    assert "retrieved just now" in text
     assert "Powered by CoinGecko" in text
-    assert "1 selected asset(s) report no market cap" in text
+    assert "1 asset(s) report no market cap" in text
+    assert "Demo mode" not in text
 
 
 def test_slider_and_reruns_reuse_cached_data(configured, mocked_api):
     mocked_api.get(MARKETS_URL, json=load_fixture("coins_markets.json"))
 
     at = run_app()
-    at.slider[0].set_value(5).run()
-    at.slider[0].set_value(20).run()
-    at.checkbox[0].check().run()
+    at.radio[0].set_value(25).run()
+    at.radio[0].set_value(50).run()
+    at.toggle[0].set_value(True).run()
     at.run()
 
     assert not at.exception
     assert len(mocked_api.calls) == 1
-    assert "Cached copy" in all_text(at)
+    assert "cached copy" in all_text(at)
 
 
 def test_refresh_button_disabled_while_data_is_fresh(configured, mocked_api):
@@ -121,7 +124,7 @@ def test_provider_failure_is_reported_safely_and_not_retried_on_rerun(configured
     mocked_api.get(MARKETS_URL, status=503)
 
     at = run_app()
-    at.slider[0].set_value(15).run()
+    at.radio[0].set_value(25).run()
 
     assert not at.exception
     messages = " ".join(error.value for error in at.error)
@@ -142,7 +145,7 @@ def test_app_recovers_after_cooldown(configured, mocked_api, monkeypatch):
     at.run()
 
     assert not at.error
-    assert len(at.metric) == 3
+    assert len(at.metric) == 4
     assert len(mocked_api.calls) == 2
 
 
@@ -170,3 +173,16 @@ def test_invalid_records_are_reported(configured, mocked_api):
     at = run_app()
 
     assert any("1 record(s)" in warning.value for warning in at.warning)
+
+
+def test_demo_mode_needs_no_key_and_makes_no_requests(monkeypatch, mocked_api):
+    monkeypatch.setenv("CRYPTOVISION_DEMO", "1")
+
+    at = run_app()
+
+    assert not at.exception
+    assert any("Demo mode" in w.value for w in at.warning)
+    assert [m.label for m in at.metric][0] == "Market cap · selected"
+    assert "synthetic demo snapshot" in all_text(at)
+    assert not any(b.label == "Refresh data" for b in at.button)  # nothing to refresh
+    assert len(mocked_api.calls) == 0
