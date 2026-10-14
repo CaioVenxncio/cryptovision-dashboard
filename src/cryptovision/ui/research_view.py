@@ -13,6 +13,7 @@ diagnostics.
 from __future__ import annotations
 
 import io
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +39,101 @@ def experiment_bundles(results_dir: Path) -> list[tuple[Path, dict[str, Any]]]:
 
 def _inside(path: Path, root: Path) -> bool:
     return path.resolve().is_relative_to(root.resolve())
+
+
+@dataclass(frozen=True)
+class PreferredBundle:
+    """A bundle selected by default, identified explicitly and checked against its metadata."""
+
+    path: str  # relative to the results directory, with forward slashes
+    experiment_id: str
+    protocol_version: str
+    protocol_fingerprint: str
+    dataset_content_sha256: str
+    simulation_bundle: str
+    results_sha256: str  # hash of results.json recorded in the bundle manifest
+
+
+# The final Phase 5 empirical result (see docs/research-reproducibility.md). Older
+# bundles of the same study share its protocol and dataset metadata, so the final
+# one is pinned explicitly; sort order and timestamps are never used to choose it.
+FINAL_BUNDLE = PreferredBundle(
+    path="volatility-correlation/v1.0-81fd40d77fd5ad96",
+    experiment_id="volatility-correlation",
+    protocol_version="1.0",
+    protocol_fingerprint="bb7796d304e5ec482fd923db94fdd66b05d8e898c367ed9adcef29e375dfaea3",
+    dataset_content_sha256="d2da4d6e7087d49b72f9b3e18a67aa72870714f3ef8a7723d4fcab62ab9d8d4e",
+    simulation_bundle="simulations/volatility-correlation-v1.0/2f87de44f528d43b",
+    results_sha256="b476495e8b5a75c2b5341e79d774062f47d719eebd7dd5dc999e3b0666db59b8",
+)
+
+
+@dataclass(frozen=True)
+class DefaultSelection:
+    index: int
+    preferred_index: int | None = None  # set only when the preferred bundle is verified
+    notice: str | None = None
+
+
+def _preferred_problem(path: Path, manifest: dict[str, Any], preferred: PreferredBundle) -> str:
+    """Why `path` cannot serve as the preferred bundle ("" if it can)."""
+    expected = {
+        "kind": "experiment",
+        "experiment_id": preferred.experiment_id,
+        "protocol_version": preferred.protocol_version,
+        "protocol_fingerprint": preferred.protocol_fingerprint,
+        "dataset_content_sha256": preferred.dataset_content_sha256,
+        "simulation_bundle": preferred.simulation_bundle,
+    }
+    if any(manifest.get(key) != value for key, value in expected.items()) or (
+        manifest.get("files", {}).get("results.json") != preferred.results_sha256
+    ):
+        return "does not match its recorded metadata"
+    try:
+        if not all(ok for _, ok, _ in artifacts.verify_bundle(path)):
+            return "failed integrity verification"
+    except (ArtifactError, OSError, ValueError, KeyError):
+        return "failed integrity verification"
+    return ""
+
+
+def default_selection(
+    bundles: list[tuple[Path, dict[str, Any]]],
+    results_dir: Path,
+    preferred: PreferredBundle | None = None,
+) -> DefaultSelection:
+    """Choose the bundle shown first.
+
+    The preferred bundle is chosen when it is present and verified. Otherwise,
+    if other bundles of the same study exist, the first of them is selected with
+    a notice that it is not the final result. Bundles of other studies (such as
+    the demo) keep the first-listed default without a notice.
+    """
+    preferred = preferred or FINAL_BUNDLE
+    target = (results_dir / preferred.path).resolve()
+    match = next((i for i, (path, _) in enumerate(bundles) if path.resolve() == target), None)
+    if match is None:
+        problem = "was not found"
+    else:
+        problem = _preferred_problem(*bundles[match], preferred)
+        if not problem:
+            return DefaultSelection(index=match, preferred_index=match)
+
+    same_study = any(
+        manifest.get("experiment_id") == preferred.experiment_id
+        and manifest.get("protocol_version") == preferred.protocol_version
+        for i, (_, manifest) in enumerate(bundles)
+        if i != match
+    )
+    if match is None and not same_study:
+        return DefaultSelection(index=0)
+    others = [i for i in range(len(bundles)) if i != match]
+    notice = f"The final study result (`{preferred.path}`) {problem}. " + (
+        "The bundle selected below is **not** the final result; select a bundle explicitly."
+        if others
+        else "No other result bundle is available."
+    )
+    return DefaultSelection(index=others[0] if others else 0, notice=notice)
 
 
 def load_bundle(path: Path, results_dir: Path) -> dict[str, Any]:
@@ -155,8 +251,18 @@ def render(results_dir: Path) -> None:
         return
 
     header = st.container()
+    default = default_selection(bundles, results_dir)
     labels = [f"{m['experiment_id']} v{m['protocol_version']} · {p.name}" for p, m in bundles]
-    index = st.selectbox("Result bundle", range(len(bundles)), format_func=lambda i: labels[i])
+    if default.preferred_index is not None:
+        labels[default.preferred_index] += " · final result"
+    index = st.selectbox(
+        "Result bundle",
+        range(len(bundles)),
+        index=default.index,
+        format_func=lambda i: labels[i],
+    )
+    if default.notice:
+        st.warning(default.notice, icon=":material/warning:")
     path, _ = bundles[index]
     try:
         bundle = load_bundle(path, results_dir)

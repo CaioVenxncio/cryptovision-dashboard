@@ -46,6 +46,18 @@ cryptovision-research report research\results\volatility-correlation\<bundle> --
 
 The Research Lab page in the dashboard (`streamlit run app.py`) shows the same bundle offline.
 
+### Default bundle in the Research Lab
+
+Several verified bundles of the same study can exist locally (for example, runs made before the final simulation bundle). They share the protocol and dataset metadata, so the page does not choose by directory order or timestamps. Instead, the final Phase 5 result is pinned in `FINAL_BUNDLE` in `src/cryptovision/ui/research_view.py`:
+
+- **Identifier:** `volatility-correlation/v1.0-81fd40d77fd5ad96` (relative to the results directory).
+- **Checked before it is selected:** experiment id, protocol version and fingerprint, dataset hash, simulation bundle, the `results.json` hash recorded in the manifest, and a full integrity verification of every file.
+- **When it passes:** it is selected by default and labelled "final result". Other valid bundles remain selectable.
+- **When it is missing or fails a check** while other bundles of the same study exist: another bundle is selected, and a warning states that it is **not** the final result.
+- **Other studies** (such as the offline demo) keep the first-listed bundle as the default, without a warning.
+
+Changing the final result requires editing `FINAL_BUNDLE` in a reviewed commit.
+
 ## Guarantees
 
 - **Frozen inputs.** `simulate` and `run` refuse to start if the protocol or configuration differs from the hashes in the lock file. Hashes are SHA-256 of the file bytes with CRLF normalized to LF, so Git line-ending conversion does not matter.

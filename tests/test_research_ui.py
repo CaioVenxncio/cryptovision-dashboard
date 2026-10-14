@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import shutil
 from pathlib import Path
 
@@ -12,8 +13,15 @@ from streamlit.testing.v1 import AppTest
 
 from cryptovision.research import artifacts
 from cryptovision.research.cli import main
-from cryptovision.ui import research_charts
-from cryptovision.ui.research_view import FAILED_NOTICE, experiment_bundles, load_bundle
+from cryptovision.ui import research_charts, research_view
+from cryptovision.ui.research_view import (
+    FAILED_NOTICE,
+    FINAL_BUNDLE,
+    PreferredBundle,
+    default_selection,
+    experiment_bundles,
+    load_bundle,
+)
 from tests.test_research_workflow import build_project
 
 APP_PATH = str(Path(__file__).resolve().parents[1] / "app.py")
@@ -126,3 +134,147 @@ def test_experiment_bundles_skip_simulations(results):
     kinds = {m["kind"] for _, m in artifacts.list_bundles(results)}
     assert kinds == {"simulation", "experiment"}
     assert len(experiment_bundles(results)) == 1
+
+
+# --- Default bundle selection ----------------------------------------------------------
+
+STUDY = {
+    "kind": "experiment",
+    "experiment_id": "volatility-correlation",
+    "protocol_version": "1.0",
+    "protocol_fingerprint": "f" * 64,
+    "dataset_content_sha256": "d" * 64,
+}
+
+
+def write_study_bundle(results_dir: Path, relative: str, *, simulation: str = "sim/a") -> Path:
+    """A minimal experiment bundle; only its manifest metadata and hashes matter here."""
+    path = results_dir / relative
+    files = {"results.json": artifacts.canonical_json({"run": relative}), "report.md": b"r"}
+    artifacts.write_bundle(path, files, {**STUDY, "simulation_bundle": simulation})
+    return path
+
+
+def preferred_for(path: Path, results_dir: Path) -> PreferredBundle:
+    manifest = artifacts.read_manifest(path)
+    return PreferredBundle(
+        path=path.relative_to(results_dir).as_posix(),
+        experiment_id=manifest["experiment_id"],
+        protocol_version=manifest["protocol_version"],
+        protocol_fingerprint=manifest["protocol_fingerprint"],
+        dataset_content_sha256=manifest["dataset_content_sha256"],
+        simulation_bundle=manifest["simulation_bundle"],
+        results_sha256=manifest["files"]["results.json"],
+    )
+
+
+@pytest.fixture
+def study(tmp_path):
+    """Two valid bundles of one study; the final one sorts last."""
+    results_dir = tmp_path / "results"
+    older = write_study_bundle(results_dir, "volatility-correlation/v1.0-0000older")
+    final = write_study_bundle(
+        results_dir, "volatility-correlation/v1.0-ffffinal", simulation="sim/b"
+    )
+    return results_dir, older, final
+
+
+def test_preferred_bundle_is_default_among_multiple_valid_bundles(study):
+    results_dir, older, final = study
+    bundles = experiment_bundles(results_dir)
+    assert [p for p, _ in bundles] == [older, final]  # path order would pick the older one
+
+    choice = default_selection(bundles, results_dir, preferred_for(final, results_dir))
+    assert bundles[choice.index][0] == final
+    assert choice.preferred_index == choice.index
+    assert choice.notice is None
+    assert len(bundles) == 2
+
+
+def test_missing_preferred_bundle_is_reported_not_replaced_silently(study):
+    results_dir, older, final = study
+    preferred = dataclasses.replace(
+        preferred_for(final, results_dir), path="volatility-correlation/v1.0-missing"
+    )
+    bundles = experiment_bundles(results_dir)
+    choice = default_selection(bundles, results_dir, preferred)
+    assert choice.preferred_index is None
+    assert "was not found" in choice.notice
+    assert "**not** the final result" in choice.notice
+
+
+def test_tampered_preferred_bundle_is_not_default(study):
+    results_dir, older, final = study
+    preferred = preferred_for(final, results_dir)
+    (final / "report.md").write_bytes(b"changed")
+    bundles = experiment_bundles(results_dir)
+    choice = default_selection(bundles, results_dir, preferred)
+    assert bundles[choice.index][0] == older
+    assert choice.preferred_index is None
+    assert "failed integrity verification" in choice.notice
+    assert "**not** the final result" in choice.notice
+
+
+def test_preferred_bundle_with_other_metadata_is_not_default(study):
+    results_dir, older, final = study
+    preferred = dataclasses.replace(preferred_for(final, results_dir), results_sha256="0" * 64)
+    choice = default_selection(experiment_bundles(results_dir), results_dir, preferred)
+    assert choice.preferred_index is None
+    assert "does not match its recorded metadata" in choice.notice
+
+
+def test_only_an_invalid_preferred_bundle(tmp_path):
+    results_dir = tmp_path / "results"
+    final = write_study_bundle(results_dir, "volatility-correlation/v1.0-final")
+    preferred = preferred_for(final, results_dir)
+    (final / "extra.txt").write_text("not in manifest")
+    choice = default_selection(experiment_bundles(results_dir), results_dir, preferred)
+    assert choice.index == 0 and choice.preferred_index is None
+    assert "No other result bundle is available" in choice.notice
+
+
+def test_other_studies_keep_first_listed_default_without_notice(tmp_path):
+    # The demo uses its own experiment id; its behavior is unchanged.
+    results_dir = tmp_path / "results"
+    path = results_dir / "demo-volatility-correlation" / "v1.0-x"
+    artifacts.write_bundle(path, {"report.md": b"r"}, {**STUDY, "experiment_id": "demo-x"})
+    choice = default_selection(experiment_bundles(results_dir), results_dir)
+    assert choice == research_view.DefaultSelection(index=0)
+
+
+def test_final_bundle_pin_matches_local_results_when_present():
+    results_dir = Path(__file__).resolve().parents[1] / "research" / "results"
+    if not (results_dir / FINAL_BUNDLE.path / "manifest.json").exists():
+        pytest.skip("final research bundle not available locally")
+    bundles = experiment_bundles(results_dir)
+    choice = default_selection(bundles, results_dir)
+    assert choice.notice is None
+    assert bundles[choice.index][0] == (results_dir / FINAL_BUNDLE.path)
+
+
+def test_page_selects_preferred_bundle_and_keeps_others(monkeypatch, results, mocked_api, tmp_path):
+    copy = tmp_path / "results"
+    shutil.copytree(results, copy)
+    final = experiment_bundles(copy)[0][0]
+    write_study_bundle(copy, "aaa-older/v1.0-0")  # sorts first, same study id
+    monkeypatch.setattr(research_view, "FINAL_BUNDLE", preferred_for(final, copy))
+
+    at = open_page(monkeypatch, copy)
+    assert not at.exception, at.exception
+    box = at.selectbox[0]
+    assert len(box.options) == 2
+    assert box.value == 1 and box.options[1].endswith("· final result")
+    assert any(FAILED_NOTICE in e.value for e in at.error)
+    assert not any("final study result" in w.value for w in at.warning)
+
+
+def test_page_warns_when_final_bundle_is_missing(monkeypatch, results, mocked_api, tmp_path):
+    copy = tmp_path / "results"
+    shutil.copytree(results, copy)
+    final = experiment_bundles(copy)[0][0]
+    missing = dataclasses.replace(preferred_for(final, copy), path="nowhere/v1.0-x")
+    monkeypatch.setattr(research_view, "FINAL_BUNDLE", missing)
+
+    at = open_page(monkeypatch, copy)
+    assert not at.exception, at.exception
+    assert any("was not found" in w.value for w in at.warning)
