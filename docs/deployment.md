@@ -2,7 +2,7 @@
 
 ## Status
 
-CryptoVision **is being deployed to Streamlit Community Cloud in offline demo mode**. The deployment has **not yet been verified** as working; this page will be updated once it has. There is no container image and no other hosted instance. Local use, as described in [getting-started.md](getting-started.md), remains the reference setup.
+CryptoVision is **deployed on Streamlit Community Cloud in offline demo mode**: <https://cryptovision-dashboard.streamlit.app>. On 2026-10-14 the Market Explorer, Historical Analytics and Research Lab pages were checked in Chrome. All three rendered synthetic demo data with the demo-mode notices, and the Research Lab showed the failed-validation notice. The hosted app serves synthetic data only, never live market data. There is no container image and no other hosted instance. Real-data workflows run locally, as described in [getting-started.md](getting-started.md).
 
 ## Streamlit Community Cloud (demo mode)
 
@@ -21,7 +21,7 @@ How it behaves:
 - All three pages show synthetic data with visible "Demo mode — synthetic data" notices. No CoinGecko requests are made, and no Binance data or empirical research results are deployed.
 - If the demo data cannot be built (for example, a read-only file system), the app shows an error. The Market Explorer demo keeps working; Historical Analytics and the Research Lab report that no data is available.
 
-Checks still to do on the hosted app: the dependency installation on Linux, write access to `.demo/`, the first-start time, and that all three pages render.
+The demo data build on Cloud is repeated after each restart, so the first visit after a restart can take up to a minute.
 
 ## Before any other deployment
 
